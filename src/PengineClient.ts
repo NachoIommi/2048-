@@ -64,9 +64,26 @@ class PengineClient {
         console.log("Failure");
     }
 
+    //Manejo de error
     handleError(error: any) {
-        throw error;
+        console.error("Pengine error objeto:", error);
+
+        // 1) Si hay texto plano en la respuesta HTTP:
+        if (error.request && error.request.responseText) {
+            console.group("Error de Prolog - responseText");
+            console.log(error.request.responseText);
+            console.groupEnd();
+            alert("Error de Prolog (véase la consola de devtools para más detalles).");
+        return;
+        }   
+        
+        // 2) Si aun así no hay responseText, volcamos el objeto completo:
+        console.group("Error de Prolog - objeto completo");
+        console.dir(error);
+        console.groupEnd();
+        alert("Error de Prolog (no pude extraer responseText). Revisa la consola.");
     }
+
 
     /**
      * Build a prolog query based on input query that:
