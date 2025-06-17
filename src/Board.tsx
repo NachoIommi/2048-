@@ -16,7 +16,11 @@ function Board({ grid, numOfColumns, onLaneClick }: BoardProps) {
                     <div
                         className='lane'
                         style={{ gridColumn: i + 1, gridRow: `1 / span ${numOfRows}` }}
-                        onClick={() => onLaneClick(i + 1)}
+                        onClick={() => {
+  console.log("👉 Clic detectado en la columna:", i + 1);
+  onLaneClick(i + 1);
+}}
+
                         key={i}
                     />
                 ))}
