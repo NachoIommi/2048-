@@ -185,18 +185,20 @@ randomBlock(Grid, 2) :-
 
 randomBlock(Grid, Block) :-
     maximoNumero(Grid, Max),
-    potenciaDe2(Max, Potencias),
+    MaxBlock is max(2, Max // 2),        
+    potenciaDe2(MaxBlock, Potencias),
     random_member(Block, Potencias).
 
 maximoNumero(Grid, Max) :-
     include(number, Grid, Numeros),
     max_list(Numeros, Max).
 
-potenciaDe2(Max, Lista) :- potencia_de2(1, Max, [], Lista).
+potenciaDe2(Max, Lista) :-
+    potencia_de2(1, Max, [], Lista).
 
 potencia_de2(N, Max, Acc, Lista) :-
     Valor is 2^N,
-    (   Valor =< Max ->
-        potencia_de2(N+1, Max, [Valor|Acc], Lista)
-    ;   reverse(Acc,Lista)
+    (   Valor =< Max
+    ->  potencia_de2(N + 1, Max, [Valor|Acc], Lista)
+    ;   reverse(Acc, Lista)
     ).
