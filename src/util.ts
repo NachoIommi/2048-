@@ -1,14 +1,12 @@
-export function numberToColor(num: number) {
-    switch (num) {
-        case 2: return "#0083bb";
-        case 4: return "#fc7f40";
-        case 8: return "#e6538a";
-        case 16: return "#058555";
-        case 32: return "#b82bfa";
-        case 64: return "#a24e78";
-        case 128: return "#b9c508";
-        default: return "black";
-    }
+export function numberToColor(num: number): string  {
+    if (num === 0) return "transparent";
+
+    const exponent = Math.log2(num);
+    const hue = (exponent * 40) % 360; // Te da un color cíclico distinto
+    const saturation = 70;
+    const lightness = 60;
+
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 }
 
 export function delay(milliseconds: number) {
