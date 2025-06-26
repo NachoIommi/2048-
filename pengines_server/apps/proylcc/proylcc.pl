@@ -74,11 +74,10 @@ bfs_same([I|Rest],Visited,Grid,NCols,NRows,Val,Cluster) :-
 merge_cluster(Cluster,Idx,Grid,Val,NCols,GridFinal,MergedVal,IdxResult) :-
     length(Cluster,Size), Size>=2, !,
     merged_value(Val,Size,MergedVal),
-    empty_cells(Cluster,Grid,Temp1),   % vacía celdas del clúster
+    empty_cells(Cluster,Grid,Temp1),
     nth1_update(Idx,Temp1,MergedVal,Temp2),
     bubble_up(Idx,Temp2,NCols,Temp3,IdxAfter),
     compact_grid_up(Temp3,NCols,GridFinal),
-    % localizar índice del bloque fusionado tras compactar
     col_of_idx(IdxAfter,NCols,Col),
     find_block_in_column(GridFinal,NCols,Col,MergedVal,IdxResult).
 merge_cluster(_,Idx,Grid,Val,_,Grid,Val,Idx).
@@ -158,6 +157,8 @@ cascade_fuse_(Idx,Grid,NCols,Val,Acc,AccOut) :-
     cluster_same(Idx,Grid,NCols,NRows,Val,Cluster),
     length(Cluster,Size), Size>=2, !,
     merge_cluster(Cluster,Idx,Grid,Val,NCols,G2,Val2,Idx2),
+    % Llamada a la regla para actualizar los bloques prohibidos (acumulativo)
+    update_forbidden_blocks_accumulated(Val2),
     cascade_fuse_(Idx2,G2,NCols,Val2,[G2|Acc],AccOut).
 cascade_fuse_(_,_,_,_,Acc,Acc).
 
@@ -177,8 +178,13 @@ new_block_between(G1,G2,Val) :-
     (   Vs = [Val|_] -> true ; Val = none).
 
 /*--------------------------------------------------------------------
-  6. randomBlock (sin cambios)
+  6. randomBlock (con cambios para bloques prohibidos)
 --------------------------------------------------------------------*/
+
+% Declaramos un hecho dinámico para almacenar la lista de bloques prohibidos.
+% Inicializamos como una lista vacía.
+:- dynamic(forbidden_blocks_accumulated/1).
+forbidden_blocks_accumulated([]).
 
 randomBlock(Grid, 2) :-
     forall(member(X, Grid), empty_cell(X)).
@@ -186,12 +192,24 @@ randomBlock(Grid, 2) :-
 randomBlock(Grid, Block) :-
     maximoNumero(Grid, Max),
     MaxBlock is max(2, Max // 2),        
-    potenciaDe2(MaxBlock, Potencias),
-    random_member(Block, Potencias).
+    potenciaDe2(MaxBlock, AllPotencias),
+    % Filtramos las potencias para excluir los bloques prohibidos
+    forbidden_blocks_accumulated(Forbidden),
+    exclude(member_of_forbidden(Forbidden), AllPotencias, AvailablePotencias),
+    (   AvailablePotencias = [] % Si no hay bloques disponibles, podemos manejar un caso de error o default
+    ->  random_member(Block, AllPotencias) % En este caso, genera cualquiera si no hay opciones válidas
+    ;   random_member(Block, AvailablePotencias)
+    ).
+
+% Predicado auxiliar para verificar si un elemento está en la lista de prohibidos
+member_of_forbidden(ForbiddenList, Element) :-
+    member(Element, ForbiddenList).
 
 maximoNumero(Grid, Max) :-
     include(number, Grid, Numeros),
-    max_list(Numeros, Max).
+    (   Numeros = [] -> Max = 0
+    ;   max_list(Numeros, Max)
+    ).
 
 potenciaDe2(Max, Lista) :-
     potencia_de2(1, Max, [], Lista).
@@ -201,4 +219,22 @@ potencia_de2(N, Max, Acc, Lista) :-
     (   Valor =< Max
     ->  potencia_de2(N + 1, Max, [Valor|Acc], Lista)
     ;   reverse(Acc, Lista)
+    ).
+    
+% Utilidad: log base 2 usando logaritmo natural
+log2(X, L) :- L is log(X) / log(2).
+
+% Regla para actualizar bloques prohibidos acumulativamente
+update_forbidden_blocks_accumulated(MergedVal) :-
+    forbidden_blocks_accumulated(CurrentForbidden),
+    (   MergedVal >= 1024
+    ->  log2(MergedVal, ExpF),
+        Exponent is round(ExpF),       % Obtener el exponente de la potencia
+        MaxIndex is Exponent - 9,
+        findall(P, (between(1, MaxIndex, I), P is 2^I), BlocksToProhibit),
+        append(BlocksToProhibit, CurrentForbidden, TempNewForbidden),
+        list_to_set(TempNewForbidden, UniqueForbidden),
+        retractall(forbidden_blocks_accumulated(_)),
+        assertz(forbidden_blocks_accumulated(UniqueForbidden))
+    ;   true  % Si MergedVal < 1024, no hacer nada
     ).
