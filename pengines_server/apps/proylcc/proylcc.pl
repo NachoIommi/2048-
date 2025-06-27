@@ -5,47 +5,109 @@
 
 :- discontiguous merge_cluster/8.
 
-empty_cell('-').        % Constante para la celda vacía
+/*
+    Constante para la celda vacia
+*/
+empty_cell('-').  
 
 /*--------------------------------------------------------------------
   AUX: posiciones y utilidades sobre la grilla
 --------------------------------------------------------------------*/
 
-%% idx(+Fila,+Col,+NCols,-Idx)
-idx(F,C,NCols,Idx) :- Idx is (F-1)*NCols + C.
+/*
+    index(+Fila,+Col,+NCols,-Index)
+    Calcula las coordennadas Fila y Columna en un indice para acceder a 
+    elementos de la lista que representa la grilla.
+    Row: Numero de la fila 
+    Col: Numero de la columna
+    NCols: Numero de columnas de la grilla
+    Index: Indice correspondiente a la celda (Fila,Col) en la grilla.
+*/
+index(Row,Col,NCols,Index) :- Index is (Row-1)*NCols + Col.
 
-%% dims(+Grid,+NCols,-NRows)
+/*
+    dims(+Grid,+NCols,-NRows)
+    Divide la longitud de la lista por el numero de columnas.
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    NRows: Numero calculado de filas de la grilla
+*/
 dims(Grid,NCols,NRows) :- length(Grid,L), NRows is L//NCols.
 
-%% nth1_update(+Idx,+List,+Value,-NewList)
+/*
+    nth1_update(+Index,+List,+Value,-NewList)
+    Actualiza el elemento en la posicion Index de la lista con 
+    Value, generando una nueva lista NewList.
+    Index: Posicion del elemento a actualizar
+    List: Lista original
+    Value: Valor a insertar en la posicion Index
+    NewList: Nueva lista con el valor actualizado
+*/
 nth1_update(1,[_|Xs],V,[V|Xs]).
 nth1_update(N,[X|Xs],V,[X|Ys]) :- N>1, N1 is N-1, nth1_update(N1,Xs,V,Ys).
 
-%% get_cell(+Idx,+Grid,-Value)
-get_cell(Idx,Grid,Val) :- nth1(Idx,Grid,Val).
+/*
+    get_cell(+Index,+Grid,-Val)
+    Obtiene el valor de la celda en la posicion Index de la grilla.
+    Index: Posicion de la celda 
+    Grid: Lista que representa la grilla
+    Val: Valor almacenado en la celda en la posicion Index
+*/
+get_cell(Index,Grid,Val) :- nth1(Index,Grid,Val).
 
-%% vecinos4(+Idx,+NCols,+NRows,-IdxVec)
-vecinos4(Idx,NCols,NRows,I2) :-
-    (   IdxUp is Idx-NCols, IdxUp >= 1, I2 = IdxUp
-    ;   IdxDown is Idx+NCols, IdxDown =< NCols*NRows, I2 = IdxDown
-    ;   IdxLeft is Idx-1, Idx mod NCols =\= 1, I2 = IdxLeft
-    ;   IdxRight is Idx+1, Idx mod NCols =\= 0, I2 = IdxRight
+%% adjacent(+Index,+NCols,+NRows,-IndexAdj)
+/*
+    adjacent(+Index,+NCols,+NRows,-IndexAdj)
+    Encuentra los indices de las celdas vecinas (arriba, abajo, izquierda, derecha)
+    de la celda en la posicion Index.
+    Index: Posicion de la celda
+    NCols: Numero de columnas de la grilla
+    NRows: Numero de filas de la grilla
+    IndexAdj: Indice de una celda vecina
+*/
+adjacent(Index,NCols,NRows,I2) :-
+    (   IdxUp is Index-NCols, IdxUp >= 1, I2 = IdxUp
+    ;   IdxDown is Index+NCols, IdxDown =< NCols*NRows, I2 = IdxDown
+    ;   IdxLeft is Index-1, Index mod NCols =\= 1, I2 = IdxLeft
+    ;   IdxRight is Index+1, Index mod NCols =\= 0, I2 = IdxRight
     ).
 
 /*--------------------------------------------------------------------
-  1. Colocar el bloque en la columna (spawn arriba)
+  1. Colocar el bloque en la columna 
 --------------------------------------------------------------------*/
 
+/*
+    drop_block(+Block,+Col,+Grid,+NCols,-NewGrid,-Row)
+    Coloca un bloque en la columna Col de la grilla Grid.
+    Block: Valor del bloque a colocar
+    Col: Numero de la columna donde se coloca el bloque
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    NewGrid: Nueva grilla con el bloque colocado
+    Row: Fila donde se coloca el bloque
+*/
 drop_block(Block,Col,Grid,NCols,NewGrid,Row) :-
     dims(Grid,NCols,NRows),
     place_from_top(Block,Col,1,NRows,Grid,NCols,NewGrid,Row).
 
+/*
+    place_from_top(+Block,+Col,+Row,+NRows,+Grid,+NCols,-NewGrid,-RowPlaced)
+    Coloca un bloque en la columna Col, comenzando desde la fila Row hasta NRows.
+    Block: Valor del bloque a colocar
+    Col: Numero de la columna donde se coloca el bloque
+    Row: Fila inicial para intentar colocar el bloque
+    NRows: Numero de filas de la grilla
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    NewGrid: Nueva grilla con el bloque colocado
+    RowPlaced: Fila donde se colocó el bloque
+*/
 place_from_top(Block,Col,Row,NRows,Grid,NCols,NewGrid,Row) :-
     Row =< NRows,
-    idx(Row,Col,NCols,Idx),
+    index(Row,Col,NCols,Index),
     empty_cell(Empty),
-    get_cell(Idx,Grid,Empty), !,
-    nth1_update(Idx,Grid,Block,NewGrid).
+    get_cell(Index,Grid,Empty), !,
+    nth1_update(Index,Grid,Block,NewGrid).
 place_from_top(Block,Col,Row,NRows,Grid,NCols,NewGrid,RowPlaced) :-
     Row < NRows,
     Row1 is Row+1,
@@ -55,60 +117,114 @@ place_from_top(_,_,Row,NRows,_,_,_,_) :-
     throw(error(column_full)).
 
 /*--------------------------------------------------------------------
-  2. Detectar clústeres y fusionar
+  2. Detectar grupos y fusionar
 --------------------------------------------------------------------*/
+/*
+    cluster_same(+Index,+Grid,+NCols,+NRows,+Val,-Cluster)
+    Encuentra un grupo de celdas adyacentes con el mismo valor Val, comenzando desde Index.
+    Index: Posicion inicial en la grilla
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    NRows: Numero de filas de la grilla
+    Val: Valor a buscar en las celdas adyacentes
+    Cluster: Lista de indices de las celdas que forman el grupo
+*/
+cluster_same(Index,Grid,NCols,NRows,Val,Cluster) :-
+    get_cell(Index,Grid,Val),
+    bfs_same([Index],[],Grid,NCols,NRows,Val,Cluster).
 
-cluster_same(Idx,Grid,NCols,NRows,Val,Cluster) :-
-    get_cell(Idx,Grid,Val),
-    bfs_same([Idx],[],Grid,NCols,NRows,Val,Cluster).
-
+/*
+    bfs_same(+Front,+Visited,+Grid,+NCols,+NRows,+Val,-Cluster)
+    Realiza una búsqueda en anchura para encontrar todas las celdas adyacentes con el mismo valor.
+    Front: Lista de indices a explorar
+    Visited: Lista de indices ya visitados
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    NRows: Numero de filas de la grilla
+    Val: Valor a buscar en las celdas adyacentes
+    Cluster: Lista de indices de las celdas que forman el grupo encontrado
+*/
 bfs_same([],Visited,_,_,_,_,Visited).
 bfs_same([I|Rest],Visited,Grid,NCols,NRows,Val,Cluster) :-
     (   member(I,Visited)
     ->  bfs_same(Rest,Visited,Grid,NCols,NRows,Val,Cluster)
-    ;   findall(V,(vecinos4(I,NCols,NRows,V), get_cell(V,Grid,Val)),Vs),
+    ;   findall(V,(adjacent(I,NCols,NRows,V), get_cell(V,Grid,Val)),Vs),
         append(Rest,Vs,Front),
         bfs_same(Front,[I|Visited],Grid,NCols,NRows,Val,Cluster)
     ).
 
-merge_cluster(Cluster,Idx,Grid,Val,NCols,GridFinal,MergedVal,IdxResult) :-
+/*
+    merge_cluster(+Cluster,+Index,+Grid,+Val,+NCols,-GridFinal,-MergedVal,-IdxResult)
+    Fusiona un grupo de celdas adyacentes con el mismo valor.
+    Cluster: Lista de indices de las celdas que forman el grupo
+    Index: Posicion del primer elemento del grupo en la grilla
+    Grid: Lista que representa la grilla
+    Val: Valor de las celdas a fusionar
+    NCols: Numero de columnas de la grilla
+    GridFinal: Nueva grilla con el grupo fusionado
+    MergedVal: Valor resultante de la fusión
+    IdxResult: Indice del bloque fusionado en la nueva grilla
+*/
+merge_cluster(Cluster,Index,Grid,Val,NCols,GridFinal,MergedVal,IdxResult) :-
     length(Cluster,Size), Size>=2, !,
     merged_value(Val,Size,MergedVal),
     empty_cells(Cluster,Grid,Temp1),
-    nth1_update(Idx,Temp1,MergedVal,Temp2),
-    bubble_up(Idx,Temp2,NCols,Temp3,IdxAfter),
+    nth1_update(Index,Temp1,MergedVal,Temp2),
+    bubble_up(Index,Temp2,NCols,Temp3,IdxAfter),
     compact_grid_up(Temp3,NCols,GridFinal),
     col_of_idx(IdxAfter,NCols,Col),
     find_block_in_column(GridFinal,NCols,Col,MergedVal,IdxResult).
-merge_cluster(_,Idx,Grid,Val,_,Grid,Val,Idx).
-
+merge_cluster(_,Index,Grid,Val,_,Grid,Val,Index).
 merged_value(V,Size,Out) :- Exp is Size-1, Out is V * 2^Exp.
 
+/*
+    empty_cells(+Indices,+Grid,-GOut)
+    Actualiza las celdas en las posiciones especificadas por Indices a un valor vacío.
+    Indices: Lista de indices de las celdas a vaciar
+    Grid: Lista que representa la grilla
+    GOut: Nueva grilla con las celdas vacías
+*/
 empty_cells([],G,G).
 empty_cells([I|Is],Grid,GOut) :-
     empty_cell(Empty),
     nth1_update(I,Grid,Empty,G1),
     empty_cells(Is,G1,GOut).
 
-bubble_up(Idx,Grid,NCols,GridOut,IdxOut) :-
-    IdxUp is Idx-NCols,
+/*
+    bubble_up(+Index,+Grid,+NCols,-GridOut,-IdxOut)
+    Mueve un bloque hacia arriba en la grilla si es posible, hasta que no pueda
+    subir más.
+    Index: Posicion del bloque a mover
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    GridOut: Nueva grilla con el bloque movido
+    IdxOut: Posicion final del bloque en la grilla
+*/
+bubble_up(Index,Grid,NCols,GridOut,IdxOut) :-
+    IdxUp is Index-NCols,
     empty_cell(Empty),
     (   IdxUp >= 1, get_cell(IdxUp,Grid,Empty)
-    ->  get_cell(Idx,Grid,Val),
-        nth1_update(Idx,Grid,Empty,T1),
+    ->  get_cell(Index,Grid,Val),
+        nth1_update(Index,Grid,Empty,T1),
         nth1_update(IdxUp,T1,Val,T2),
         bubble_up(IdxUp,T2,NCols,GridOut,IdxOut)
-    ;   GridOut = Grid, IdxOut = Idx
+    ;   GridOut = Grid, IdxOut = Index
     ).
 
 /*--------------------------------------------------------------------
-  3. Compactar columnas (eliminar huecos)
+  3. Compactar columnas 
 --------------------------------------------------------------------*/
-
+/*
+    compact_grid_up(+Grid,+NCols,-GridOut)
+    Compacta las columnas de la grilla, moviendo los bloques hacia arriba
+    y rellenando con celdas vacías al final de cada columna.
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    GridOut: Nueva grilla compactada
+*/
 compact_grid_up(Grid,NCols,GridOut) :-
     dims(Grid,NCols,NRows),
     compact_columns(1,NCols,NRows,Grid,NCols,GridOut).
-
 compact_columns(Col,MaxCol,_,Grid,_,Grid) :- Col > MaxCol, !.
 compact_columns(Col,MaxCol,NRows,Grid,NCols,GridOut) :-
     column_indices(Col,NCols,NRows,Idxs),
@@ -123,30 +239,80 @@ compact_columns(Col,MaxCol,NRows,Grid,NCols,GridOut) :-
     Col1 is Col+1,
     compact_columns(Col1,MaxCol,NRows,Grid1,NCols,GridOut).
 
+/*
+    update_indices_with_vals(+Indices,+Values,+Grid,-GOut)
+    Actualiza los indices especificados en la grilla con los valores correspondientes.
+    Indices: Lista de indices a actualizar
+    Values: Lista de valores a insertar en los indices
+    Grid: Lista que representa la grilla
+    GOut: Nueva grilla con los valores actualizados
+*/
 update_indices_with_vals([],[],G,G).
 update_indices_with_vals([I|Is],[V|Vs],Grid,GOut) :-
     nth1_update(I,Grid,V,G1),
     update_indices_with_vals(Is,Vs,G1,GOut).
 
+/*
+    column_indices(+Col,+NCols,+NRows,-Idxs)
+    Obtiene los indices de todas las celdas en la columna Col de la grilla.
+    Col: Numero de la columna
+    NCols: Numero de columnas de la grilla  
+    NRows: Numero de filas de la grilla
+    Idxs: Lista de indices de las celdas en la columna Col
+*/
 column_indices(Col,NCols,NRows,Idxs) :-
-    findall(I,(between(1,NRows,R), idx(R,Col,NCols,I)),Idxs).
+    findall(I,(between(1,NRows,R), index(R,Col,NCols,I)),Idxs).
 
-col_of_idx(Idx,NCols,Col) :- Col is ((Idx-1) mod NCols) + 1.
+/*
+    col_of_idx(+Index,+NCols,-Col)
+    Obtiene el numero de columna a partir de un indice dado.
+    Index: Posicion del elemento en la grilla
+    NCols: Numero de columnas de la grilla
+    Col: Numero de la columna correspondiente al indice
+*/
+col_of_idx(Index,NCols,Col) :- Col is ((Index-1) mod NCols) + 1.
 
-find_block_in_column(Grid,NCols,Col,Val,Idx) :-
+/*
+    find_block_in_column(+Grid,+NCols,+Col,+Val,-Index)
+    Busca un bloque con el valor Val en la columna Col de la grilla Grid.
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    Col: Numero de la columna donde buscar
+    Val: Valor del bloque a buscar
+    Index: Indice del bloque encontrado en la grilla
+*/
+find_block_in_column(Grid,NCols,Col,Val,Index) :-
     dims(Grid,NCols,NRows),
-    between(1,NRows,R), idx(R,Col,NCols,Idx), nth1(Idx,Grid,Val), !.
+    between(1,NRows,R), index(R,Col,NCols,Index), nth1(Index,Grid,Val), !.
 
 /*--------------------------------------------------------------------
   4. Cascada de fusiones y efectos
 --------------------------------------------------------------------*/
+/*
+    shoot(+Block,+Col,+Grid,+NCols,-Effects)
+    Coloca un bloque en la columna Col de la grilla Grid y realiza cascadas de fusiones.
+    Block: Valor del bloque a colocar
+    Col: Numero de la columna donde se coloca el bloque
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    Effects: Lista de efectos resultantes de las fusiones
+*/
 shoot(Block,Col,Grid,NCols,Effects) :-
     drop_block(Block,Col,Grid,NCols,G1,RowPlaced),
-    idx(RowPlaced,Col,NCols,IdxPlaced0),
+    index(RowPlaced,Col,NCols,IdxPlaced0),
     get_cell(IdxPlaced0,G1,Val0),
     cascade_fuse(IdxPlaced0,G1,NCols,Val0,GridsAsc),
     grids_to_effects(GridsAsc,Effects).
 
+/*
+    cascade_fuse(+IdxOrig,+Grid,+NCols,+Val,+GridsAsc)
+    Realiza cascadas de fusiones a partir del bloque colocado en la grilla.
+    IdxOrig: Indice del bloque colocado originalmente
+    Grid: Lista que representa la grilla
+    NCols: Numero de columnas de la grilla
+    Val: Valor del bloque colocado
+    GridsAsc: Lista de grillas resultantes de las fusiones
+*/
 cascade_fuse(IdxOrig, Grid, NCols, _Val, GridsAsc) :-
     cascade_fuse_(Grid, NCols, IdxOrig, [Grid], RevGrids),
     reverse(RevGrids, GridsAsc).
@@ -181,12 +347,25 @@ cascade_fuse_(Grid, NCols, IdxOrig, Acc, FinalAcc) :-
   5. Convertir grillas → effects
 --------------------------------------------------------------------*/
 
+/*
+    grids_to_effects(+Grids,+Effects)
+    Convierte una lista de grillas en una lista de efectos.
+    Grids: Lista de grillas resultantes de las fusiones
+    Effects: Lista de efectos correspondientes a las grillas
+*/
 grids_to_effects([G],[effect(G,[])]).
 grids_to_effects([Prev,Next|Rest],[effect(Prev,Ef)|Tail]) :-
     new_block_between(Prev,Next,Val),
     (   Val == none -> Ef = [] ; Ef = [newBlock(Val)]),
     grids_to_effects([Next|Rest],Tail).
 
+/*
+    new_block_between(+G1,+G2,-Val)
+    Determina el valor del nuevo bloque entre dos grillas G1 y G2.
+    G1: Grilla anterior
+    G2: Grilla siguiente
+    Val: Valor del nuevo bloque, o none si no hay bloque nuevo
+*/
 new_block_between(G1,G2,Val) :-
     empty_cell(Empty),
     findall(V,(nth1(I,G2,V), nth1(I,G1,Empty), number(V)),Vs),
@@ -199,15 +378,27 @@ new_block_between(G1,G2,Val) :-
 % Declaramos un hecho dinámico para almacenar la lista de bloques prohibidos.
 % Inicializamos como una lista vacía.
 :- dynamic(forbidden_blocks_accumulated/1).
+
+/*
+    forbidden_blocks_accumulated(+Forbidden)
+    Almacena los bloques prohibidos acumulados en la base de datos.
+    Forbidden: Lista de bloques prohibidos
+*/
 forbidden_blocks_accumulated([]).
 
+/*
+    randomBlock(+Block)
+    Genera un bloque aleatorio basado en el máximo valor en la grilla,
+    excluyendo los bloques prohibidos.    
+    Grid: Lista que representa la grilla
+    Block: Valor del bloque aleatorio generado
+*/
 randomBlock(Grid, 2) :-
     forall(member(X, Grid), empty_cell(X)).
-
 randomBlock(Grid, Block) :-
-    maximoNumero(Grid, Max),
+    max_num(Grid, Max),
     MaxBlock is max(2, Max // 2),        
-    potenciaDe2(MaxBlock, AllPotencias),
+    power_of_2(MaxBlock, AllPotencias),
     % Filtramos las potencias para excluir los bloques prohibidos
     forbidden_blocks_accumulated(Forbidden),
     exclude(member_of_forbidden(Forbidden), AllPotencias, AvailablePotencias),
@@ -216,30 +407,64 @@ randomBlock(Grid, Block) :-
     ;   random_member(Block, AvailablePotencias)
     ).
 
-% Predicado auxiliar para verificar si un elemento está en la lista de prohibidos
+/*
+    member_of_forbidden(+Forbidden,+Element)
+    Verifica si un elemento está en la lista de bloques prohibidos.
+    Forbidden: Lista de bloques prohibidos
+    Element: Elemento a verificar
+*/
 member_of_forbidden(ForbiddenList, Element) :-
     member(Element, ForbiddenList).
 
-maximoNumero(Grid, Max) :-
-    include(number, Grid, Numeros),
-    (   Numeros = [] -> Max = 0
-    ;   max_list(Numeros, Max)
+/*
+    max_num(+Grid,-Max)
+    Encuentra el máximo número en la grilla, o 0 si no hay números.
+    Grid: Lista que representa la grilla
+    Max: Máximo número encontrado en la grilla
+*/
+max_num(Grid, Max) :-
+    include(number, Grid, Numbers),
+    (   Numbers = [] -> Max = 0
+    ;   max_list(Numbers, Max)
     ).
 
-potenciaDe2(Max, Lista) :-
-    potencia_de2(1, Max, [], Lista).
+/*
+    power_of_2(+Max, -Lista)
+    Genera una lista de potencias de 2 hasta el máximo especificado.
+    Max: Máximo valor para las potencias de 2
+    Lista: Lista de potencias de 2 generadas
+*/
+power_of_2(Max, List) :-
+    power_of_2_aux(1, Max, [], List).
 
-potencia_de2(N, Max, Acc, Lista) :-
+/*
+    power_of_2_aux(+N, +Max, +Acc, -List)
+    Genera potencias de 2 recursivamente hasta que el valor supere Max.
+    N: Exponente actual
+    Max: Máximo valor permitido
+    Acc: Acumulador para las potencias generadas
+    List: Lista final de potencias de 2
+*/
+power_of_2_aux(N, Max, Acc, List) :-
     Valor is 2^N,
     (   Valor =< Max
-    ->  potencia_de2(N + 1, Max, [Valor|Acc], Lista)
-    ;   reverse(Acc, Lista)
+    ->  power_of_2_aux(N + 1, Max, [Valor|Acc], List)
+    ;   reverse(Acc, List)
     ).
     
-% Utilidad: log base 2 usando logaritmo natural
+/*
+    log2(+X, -L)
+    Calcula el logaritmo base 2 de X.
+    X: Valor del cual calcular el logaritmo
+    L: Resultado del logaritmo base 2
+*/
 log2(X, L) :- L is log(X) / log(2).
 
-% Regla para actualizar bloques prohibidos acumulativamente
+/*
+    update_forbidden_blocks_accumulated(+MergedVal)
+    Actualiza la lista de bloques prohibidos acumulados si MergedVal es mayor o igual a 1024.
+    MergedVal: Valor resultante de una fusión
+*/
 update_forbidden_blocks_accumulated(MergedVal) :-
     forbidden_blocks_accumulated(CurrentForbidden),
     (   MergedVal >= 1024
