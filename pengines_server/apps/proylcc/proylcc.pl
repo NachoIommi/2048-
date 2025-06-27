@@ -148,19 +148,28 @@ shoot(Block,Col,Grid,NCols,Effects) :-
     cascade_fuse(IdxPlaced0,G1,NCols,Val0,GridsAsc),
     grids_to_effects(GridsAsc,Effects).
 
-cascade_fuse(Idx,Grid,NCols,Val,GridsAsc) :-
-    cascade_fuse_(Idx,Grid,NCols,Val,[Grid],Rev),
-    reverse(Rev,GridsAsc).
+cascade_fuse(_Idx, Grid, NCols, _Val, GridsAsc) :-
+    cascade_fuse_(Grid, NCols, [Grid], RevGrids),
+    reverse(RevGrids, GridsAsc).
 
-cascade_fuse_(Idx,Grid,NCols,Val,Acc,AccOut) :-
-    dims(Grid,NCols,NRows),
-    cluster_same(Idx,Grid,NCols,NRows,Val,Cluster),
-    length(Cluster,Size), Size>=2, !,
-    merge_cluster(Cluster,Idx,Grid,Val,NCols,G2,Val2,Idx2),
-    % Llamada a la regla para actualizar los bloques prohibidos (acumulativo)
-    update_forbidden_blocks_accumulated(Val2),
-    cascade_fuse_(Idx2,G2,NCols,Val2,[G2|Acc],AccOut).
-cascade_fuse_(_,_,_,_,Acc,Acc).
+cascade_fuse_(Grid, NCols, Acc, FinalAcc) :-
+    dims(Grid, NCols, NRows),
+    empty_cell(Empty),
+    findall(Idx, (nth1(Idx, Grid, Val), Val \= Empty,
+                  cluster_same(Idx, Grid, NCols, NRows, Val, Cluster),
+                  length(Cluster, Size), Size >= 2), Clusteres),
+
+    (   Clusteres = []
+    ->  FinalAcc = Acc
+    ;   % Tomamos el primer clúster para fundir
+        Clusteres = [Idx|_],
+        nth1(Idx, Grid, Val),
+        cluster_same(Idx, Grid, NCols, NRows, Val, Cluster),
+        merge_cluster(Cluster, Idx, Grid, Val, NCols, Grid2, Val2, _),
+        update_forbidden_blocks_accumulated(Val2),
+        cascade_fuse_(Grid2, NCols, [Grid2|Acc], FinalAcc)
+    ).
+
 
 /*--------------------------------------------------------------------
   5. Convertir grillas → effects
