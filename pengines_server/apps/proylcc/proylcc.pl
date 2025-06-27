@@ -140,7 +140,6 @@ find_block_in_column(Grid,NCols,Col,Val,Idx) :-
 /*--------------------------------------------------------------------
   4. Cascada de fusiones y efectos
 --------------------------------------------------------------------*/
-
 shoot(Block,Col,Grid,NCols,Effects) :-
     drop_block(Block,Col,Grid,NCols,G1,RowPlaced),
     idx(RowPlaced,Col,NCols,IdxPlaced0),
@@ -148,28 +147,35 @@ shoot(Block,Col,Grid,NCols,Effects) :-
     cascade_fuse(IdxPlaced0,G1,NCols,Val0,GridsAsc),
     grids_to_effects(GridsAsc,Effects).
 
-cascade_fuse(_Idx, Grid, NCols, _Val, GridsAsc) :-
-    cascade_fuse_(Grid, NCols, [Grid], RevGrids),
+cascade_fuse(IdxOrig, Grid, NCols, _Val, GridsAsc) :-
+    cascade_fuse_(Grid, NCols, IdxOrig, [Grid], RevGrids),
     reverse(RevGrids, GridsAsc).
-
-cascade_fuse_(Grid, NCols, Acc, FinalAcc) :-
+cascade_fuse_(Grid, NCols, IdxOrig, Acc, FinalAcc) :-
     dims(Grid, NCols, NRows),
     empty_cell(Empty),
-    findall(Idx, (nth1(Idx, Grid, Val), Val \= Empty,
-                  cluster_same(Idx, Grid, NCols, NRows, Val, Cluster),
-                  length(Cluster, Size), Size >= 2), Clusteres),
-
-    (   Clusteres = []
-    ->  FinalAcc = Acc
-    ;   % Tomamos el primer clúster para fundir
-        Clusteres = [Idx|_],
-        nth1(Idx, Grid, Val),
-        cluster_same(Idx, Grid, NCols, NRows, Val, Cluster),
-        merge_cluster(Cluster, Idx, Grid, Val, NCols, Grid2, Val2, _),
+    findall((I, Cluster),
+        (
+            nth1(I, Grid, Val), Val \= Empty,
+            cluster_same(I, Grid, NCols, NRows, Val, Cluster),
+            length(Cluster, Size), Size >= 2
+        ),
+        ClustersWithIdx
+    ),
+    (
+        ClustersWithIdx = []
+    ->
+        FinalAcc = Acc
+    ;
+        % Buscar un clúster que incluya el índice original
+        ( member((_, Cluster0), ClustersWithIdx), member(IdxOrig, Cluster0)
+        -> I = IdxOrig, Cluster = Cluster0
+        ;  ClustersWithIdx = [(I, Cluster)|_]
+        ),
+        nth1(I, Grid, Val),
+        merge_cluster(Cluster, I, Grid, Val, NCols, Grid2, Val2, NewIdxOrig),
         update_forbidden_blocks_accumulated(Val2),
-        cascade_fuse_(Grid2, NCols, [Grid2|Acc], FinalAcc)
+        cascade_fuse_(Grid2, NCols, NewIdxOrig, [Grid2|Acc], FinalAcc)
     ).
-
 
 /*--------------------------------------------------------------------
   5. Convertir grillas → effects
