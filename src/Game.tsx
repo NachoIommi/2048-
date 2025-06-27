@@ -83,15 +83,21 @@ function Game() {
     const [effectGrid, effectInfo] = effect.args;
     setGrid(effectGrid);
     effectInfo.forEach((effectInfoItem) => {
-      const { functor, args } = effectInfoItem;
-      switch (functor) {
-        case 'newBlock':
-          setScore(score => score + args[0]);
-          break;
-        default:
-          break;
-      }
-    });
+  const { functor, args } = effectInfoItem;
+
+  console.log("📦 Efecto recibido:", functor, args);  // 👈 LOG agregado
+  /*modificación para poder visualizar por consola la aplicacion de efectos */
+  switch (functor) {
+    case 'newBlock':
+      setScore(score => score + args[0]);
+      break;
+    case 'fusionAnimada':
+      // Podés agregar lógica visual acá más adelante
+      break;
+    default:
+      break;
+  }
+});
     const restRGrids = effects.slice(1);
     if (restRGrids.length === 0) {
       setWaiting(false);
