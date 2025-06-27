@@ -1,10 +1,12 @@
 :- module(proylcc,
     [ randomBlock/2,
-      shoot/5
+      shoot/5,
+      score/1 
     ]).
 
 :- discontiguous merge_cluster/8.
 
+score(_).
 /*
     Constante para la celda vacia
 */
@@ -16,7 +18,7 @@ empty_cell('-').
 
 /*
     index(+Fila,+Col,+NCols,-Index)
-    Calcula las coordennadas Fila y Columna en un indice para acceder a 
+    Calcula las coordenadas Fila y Columna en un indice para acceder a 
     elementos de la lista que representa la grilla.
     Row: Numero de la fila 
     Col: Numero de la columna
@@ -313,10 +315,13 @@ shoot(Block,Col,Grid,NCols,Effects) :-
     Val: Valor del bloque colocado
     GridsAsc: Lista de grillas resultantes de las fusiones
 */
-cascade_fuse(IdxOrig, Grid, NCols, _Val, GridsAsc) :-
-    cascade_fuse_(Grid, NCols, IdxOrig, [Grid], RevGrids),
-    reverse(RevGrids, GridsAsc).
-cascade_fuse_(Grid, NCols, IdxOrig, Acc, FinalAcc) :-
+cascade_fuse(IdxOrig, Grid, NCols, _Val, GridsAndEffectsAsc) :- % Cambié el nombre del parámetro para mayor claridad
+    % El acumulador inicial para cascade_fuse_ es la primera grilla con una lista vacía de efectos.
+    % Los efectos de score se añadirán a medida que ocurran fusiones.
+    cascade_fuse_(Grid, NCols, IdxOrig, [effect(Grid, [])], RevGridsAndEffects), % <-- ¡Aquí el cambio!
+    reverse(RevGridsAndEffects, GridsAndEffectsAsc).
+
+cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :- % Cambié el nombre del parámetro para mayor claridad
     dims(Grid, NCols, NRows),
     empty_cell(Empty),
     findall((I, Cluster),
@@ -330,7 +335,7 @@ cascade_fuse_(Grid, NCols, IdxOrig, Acc, FinalAcc) :-
     (
         ClustersWithIdx = []
     ->
-        FinalAcc = Acc
+        FinalAccEffects = AccEffects
     ;
         % Buscar un clúster que incluya el índice original
         ( member((_, Cluster0), ClustersWithIdx), member(IdxOrig, Cluster0)
@@ -340,7 +345,11 @@ cascade_fuse_(Grid, NCols, IdxOrig, Acc, FinalAcc) :-
         nth1(I, Grid, Val),
         merge_cluster(Cluster, I, Grid, Val, NCols, Grid2, Val2, NewIdxOrig),
         update_forbidden_blocks_accumulated(Val2),
-        cascade_fuse_(Grid2, NCols, NewIdxOrig, [Grid2|Acc], FinalAcc)
+        
+        % ¡AQUÍ ES DONDE DEBES AGREGAR EL EFECTO score(Val2)!
+        CurrentStepIndividualEffects = [score(Val2)], % <-- ¡Esta es la línea clave!
+
+        cascade_fuse_(Grid2, NCols, NewIdxOrig, [effect(Grid2, CurrentStepIndividualEffects)|AccEffects], FinalAccEffects) % <-- ¡Y este cambio en la recursión!
     ).
 
 /*--------------------------------------------------------------------
@@ -353,11 +362,23 @@ cascade_fuse_(Grid, NCols, IdxOrig, Acc, FinalAcc) :-
     Grids: Lista de grillas resultantes de las fusiones
     Effects: Lista de efectos correspondientes a las grillas
 */
-grids_to_effects([G],[effect(G,[])]).
-grids_to_effects([Prev,Next|Rest],[effect(Prev,Ef)|Tail]) :-
-    new_block_between(Prev,Next,Val),
-    (   Val == none -> Ef = [] ; Ef = [newBlock(Val)]),
-    grids_to_effects([Next|Rest],Tail).
+grids_to_effects([], []). % Caso base: lista vacía
+
+% Última grilla en la secuencia: simplemente la grilla con sus efectos individuales
+grids_to_effects([effect(G, IndividualEffects)], [effect(G, IndividualEffects)]).
+
+% Procesa pares de grillas para detectar newBlock y combinar con efectos individuales
+grids_to_effects([effect(PrevGrid, PrevIndividualEffects), effect(NextGrid, NextIndividualEffects)|Rest], [effect(PrevGrid, CombinedEffectsForPrev)|Tail]) :-
+    % Detecta el newBlock (si lo hay) entre PrevGrid y NextGrid
+    new_block_between(PrevGrid, NextGrid, NewBlockVal),
+    (   NewBlockVal == none -> DetectedNewBlockEffect = [] ; DetectedNewBlockEffect = [newBlock(NewBlockVal)]),
+    
+    % Combina los efectos individuales que ya traía PrevGrid con el efecto de newBlock
+    append(PrevIndividualEffects, DetectedNewBlockEffect, CombinedEffectsForPrev),
+    
+    % Continúa recursivamente con el resto de la lista
+    grids_to_effects([effect(NextGrid, NextIndividualEffects)|Rest], Tail).
+
 
 /*
     new_block_between(+G1,+G2,-Val)

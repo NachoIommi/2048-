@@ -10,11 +10,18 @@ interface EffectTerm extends PrologTerm {
   args: [Grid, EffectInfoTerm[]];
 }
 
-type EffectInfoTerm = NewBlockTerm | PrologTerm;
+type EffectInfoTerm = NewBlockTerm | ScoreTerm | PrologTerm; // <--- MODIFICADO: Agregamos ScoreTerm
 interface NewBlockTerm extends PrologTerm {
   functor: "newBlock";
   args: [number];
 }
+
+// <--- NUEVA INTERFACE PARA EL EFECTO SCORE
+interface ScoreTerm extends PrologTerm {
+  functor: "score";
+  args: [number]; // El primer argumento será el valor numérico a sumar al score
+}
+
 
 function Game() {
 
@@ -83,21 +90,24 @@ function Game() {
     const [effectGrid, effectInfo] = effect.args;
     setGrid(effectGrid);
     effectInfo.forEach((effectInfoItem) => {
-  const { functor, args } = effectInfoItem;
+      const { functor, args } = effectInfoItem;
 
-  console.log("📦 Efecto recibido:", functor, args);  // 👈 LOG agregado
-  /*modificación para poder visualizar por consola la aplicacion de efectos */
-  switch (functor) {
-    case 'newBlock':
-      setScore(score => score + args[0]);
-      break;
-    case 'fusionAnimada':
-      // Podés agregar lógica visual acá más adelante
-      break;
-    default:
-      break;
-  }
-});
+      console.log("📦 Efecto recibido:", functor, args);  // 👈 LOG agregado
+      /*modificación para poder visualizar por consola la aplicacion de efectos */
+      switch (functor) {
+        case 'newBlock':
+          setScore(score => score + args[0]);
+          break;
+        case 'score': // <-- ¡NUEVO CASO AGREGADO AQUÍ!
+          setScore(score => score + args[0]); // Suma el valor del bloque fusionado
+          break;
+        case 'fusionAnimada':
+          // Podés agregar lógica visual acá más adelante
+          break;
+        default:
+          break;
+      }
+    });
     const restRGrids = effects.slice(1);
     if (restRGrids.length === 0) {
       setWaiting(false);
