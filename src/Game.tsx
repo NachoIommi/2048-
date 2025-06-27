@@ -10,116 +10,103 @@ interface EffectTerm extends PrologTerm {
   args: [Grid, EffectInfoTerm[]];
 }
 
-type EffectInfoTerm = NewBlockTerm | ScoreTerm | PrologTerm; // <--- MODIFICADO: Agregamos ScoreTerm
+type EffectInfoTerm = NewBlockTerm | ScoreTerm | PrologTerm;
 interface NewBlockTerm extends PrologTerm {
   functor: "newBlock";
   args: [number];
 }
-
-// <--- NUEVA INTERFACE PARA EL EFECTO SCORE
 interface ScoreTerm extends PrologTerm {
   functor: "score";
-  args: [number]; // El primer argumento será el valor numérico a sumar al score
+  args: [number];
 }
 
-
 function Game() {
-
-  // State
   const [pengine, setPengine] = useState<any>(null);
   const [grid, setGrid] = useState<Grid | null>(null);
   const [numOfColumns, setNumOfColumns] = useState<number | null>(null);
   const [score, setScore] = useState<number>(0);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
+  const [mergedIndex, setMergedIndex] = useState<number | null>(null);
+  const [lastShotCol, setLastShotCol] = useState<number | null>(null);
 
   useEffect(() => {
-    // This is executed just once, after the first render.
     connectToPenginesServer();
   }, []);
 
   useEffect(() => {
-    if (pengine) {
-      // This is executed after pengine was set.
-      initGame();
-    }
+    if (pengine) initGame();
   }, [pengine]);
 
   async function connectToPenginesServer() {
-    setPengine(await PengineClient.create()); // Await until the server is initialized
+    setPengine(await PengineClient.create());
   }
 
   async function initGame() {
-    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block)';
-    const response = await pengine!.query(queryS);
+    const response = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block)');
     setGrid(response['Grid']);
     setShootBlock(response['Block']);
     setNumOfColumns(response['NumOfColumns']);
   }
 
-  /**
-   * Called when the player clicks on a lane.
-   */
   async function handleLaneClick(lane: number) {
-    // No effect if waiting.
-    if (waiting) {
-      return;
-    }
-    /*
-    Build Prolog query, which will be something like:
-    shoot(2, 2, [4,2,8,64,32,2,-,-,4,16,-,-,-,-,2,-,-,-,-,16,-,-,-,-,2,-,-,-,-,-,-,-,-,-,-], 5, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block).
-    */
+    if (waiting) return;
+    setLastShotCol(lane - 1);
+
     const gridS = JSON.stringify(grid).replace(/"/g, '');
     const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
     setWaiting(true);
-    const response = await pengine.query(queryS);    
-    if (response) {      
+    const response = await pengine.query(queryS);
+    if (response) {
       animateEffect(response['Effects']);
       setShootBlock(response['Block']);
     } else {
       setWaiting(false);
     }
   }
-  
-  /**
-   * Displays each grid of the sequence as the current grid in 1sec intervals, and considers the other effect information.
-   * @param effects The list of effects to be animated.
-   */
+
   async function animateEffect(effects: EffectTerm[]) {
-    const effect = effects[0];    
-    const [effectGrid, effectInfo] = effect.args;
-    setGrid(effectGrid);
-    effectInfo.forEach((effectInfoItem) => {
-      const { functor, args } = effectInfoItem;
+    let prevGrid = grid;
 
-      console.log("📦 Efecto recibido:", functor, args);  // 👈 LOG agregado
-      /*modificación para poder visualizar por consola la aplicacion de efectos */
-      switch (functor) {
-        case 'newBlock':
-          setScore(score => score + args[0]);
-          break;
-        case 'score': // <-- ¡NUEVO CASO AGREGADO AQUÍ!
-          setScore(score => score + args[0]); // Suma el valor del bloque fusionado
-          break;
-        case 'fusionAnimada':
-          // Podés agregar lógica visual acá más adelante
-          break;
-        default:
-          break;
+    for (const effect of effects) {
+      const [effectGrid, effectInfo] = effect.args;
+
+      let fusionIdx: number | null = null;
+      if (prevGrid) {
+        for (let j = 0; j < effectGrid.length; j++) {
+          const prev = prevGrid[j];
+          const curr = effectGrid[j];
+          if (prev !== '-' && curr !== '-' && Number(curr) > Number(prev)) {
+            fusionIdx = j;
+            break;
+          }
+        }
       }
-    });
-    const restRGrids = effects.slice(1);
-    if (restRGrids.length === 0) {
-      setWaiting(false);
-      return;
+
+      setGrid(effectGrid);
+
+      if (fusionIdx !== null) {
+        setMergedIndex(fusionIdx);
+        await delay(1000); // pausa de 1s antes de seguir con otra combinacion
+        setMergedIndex(null);
+      }
+
+      effectInfo.forEach(({ functor, args }) => {
+        console.log("📦 Efecto recibido:", functor, args);
+        if (functor === 'newBlock' || functor === 'score') {
+          setScore(s => s + args[0]);
+        }
+      });
+
+      prevGrid = effectGrid;
+      await delay(300); // pausa breve entre efectos
     }
-    await delay(1000);
-    animateEffect(restRGrids);
+
+    setWaiting(false);
   }
 
-  if (grid === null) {
-    return null;
-  }
+  if (grid === null) return null;
+
   return (
     <div className="game">
       <div className="header">
@@ -129,10 +116,15 @@ function Game() {
         grid={grid}
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
+        mergedIndex={mergedIndex}
       />
       <div className='footer'>
         <div className='blockShoot'>
-          <Block value={shootBlock!} position={[0, 0]} />
+          <Block
+          value={shootBlock!}
+          position={[0,0]}
+          // omitimos skipLaunch aquí para que siga haciendo launch
+          />
         </div>
       </div>
     </div>
