@@ -37,10 +37,35 @@ function Game() {
   const [waiting, setWaiting] = useState<boolean>(false);
   const [fusionGroup, setFusionGroup] = useState<number[]>([]);
   const [animateNextBlock, setAnimateNextBlock] = useState(false);
+  const [isNextBlockRevealed, setIsNextBlockRevealed] = useState(false);
+  const [revealProgress, setRevealProgress] = useState(0);
 
 
   useEffect(() => { connectToPenginesServer(); }, []);
   useEffect(() => { if (pengine) initGame(); }, [pengine]);
+
+
+  function revealNextBlock() {
+  if (isNextBlockRevealed) return;
+  setIsNextBlockRevealed(true);
+  setRevealProgress(0);
+
+  const start = Date.now();
+  const duration = 10000; 
+  const interval = 100;   // actualizar cada 100ms
+
+  const timer = setInterval(() => {
+    const elapsed = Date.now() - start;
+    if (elapsed >= duration) {
+      clearInterval(timer);
+      setIsNextBlockRevealed(false);
+      setRevealProgress(0);
+    } else {
+      setRevealProgress(elapsed / duration);
+    }
+  }, interval);
+}
+
 
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create());
@@ -154,11 +179,26 @@ function Game() {
         <div className="blockShoot">
           {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
           
-      
-          {nextBlock !== null &&
-          <div className={`next-block ${animateNextBlock ? 'slide-to-left' : ''}`}>
-            <Block value={nextBlock} position={[0, 1]} skipLaunch />
-          </div>}
+        {nextBlock !== null &&
+          <div className={`next-block ${animateNextBlock && isNextBlockRevealed ? 'slide-to-left' : ''}`}>
+            <div className="next-block-wrapper" onClick={revealNextBlock}>
+              {isNextBlockRevealed ? (
+                <>
+                  <Block value={nextBlock} position={[0, 1]} skipLaunch />
+                  <div className="progress-bar">
+                    <div
+                      className="progress-bar-fill"
+                      style={{ width: `${revealProgress * 100}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="overlay">
+                  Bloque siguiente
+                </div>
+              )}
+            </div>
+          </div>}        
         </div>
       </div>
     </div>
