@@ -27,35 +27,29 @@ function Game() {
   const [score, setScore] = useState<number>(0);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
-  const [mergedIndex, setMergedIndex] = useState<number | null>(null);
-  const [lastShotCol, setLastShotCol] = useState<number | null>(null);
+  const [fusionGroup, setFusionGroup] = useState<number[]>([]);
 
-  useEffect(() => {
-    connectToPenginesServer();
-  }, []);
-
-  useEffect(() => {
-    if (pengine) initGame();
-  }, [pengine]);
+  useEffect(() => { connectToPenginesServer(); }, []);
+  useEffect(() => { if (pengine) initGame(); }, [pengine]);
 
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create());
   }
 
   async function initGame() {
-    const response = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block)');
-    setGrid(response['Grid']);
-    setShootBlock(response['Block']);
-    setNumOfColumns(response['NumOfColumns']);
+    const res = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block)');
+    setGrid(res['Grid']);
+    setShootBlock(res['Block']);
+    setNumOfColumns(res['NumOfColumns']);
   }
 
   async function handleLaneClick(lane: number) {
     if (waiting) return;
-    setLastShotCol(lane - 1);
 
     const gridS = JSON.stringify(grid).replace(/"/g, '');
     const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
     setWaiting(true);
+
     const response = await pengine.query(queryS);
     if (response) {
       animateEffect(response['Effects']);
@@ -71,11 +65,11 @@ function Game() {
     for (const effect of effects) {
       const [effectGrid, effectInfo] = effect.args;
 
+      // Detectar receptor: celda que aumenta de valor
       let fusionIdx: number | null = null;
       if (prevGrid) {
         for (let j = 0; j < effectGrid.length; j++) {
-          const prev = prevGrid[j];
-          const curr = effectGrid[j];
+          const prev = prevGrid[j], curr = effectGrid[j];
           if (prev !== '-' && curr !== '-' && Number(curr) > Number(prev)) {
             fusionIdx = j;
             break;
@@ -85,23 +79,42 @@ function Game() {
 
       setGrid(effectGrid);
 
-      if (fusionIdx !== null) {
-        setMergedIndex(fusionIdx);
-        await delay(1000); // pausa de 1s antes de seguir con otra combinacion
-        setMergedIndex(null);
+      if (fusionIdx !== null && prevGrid && numOfColumns) {
+        const targetVal = prevGrid[fusionIdx];
+        const queue = [fusionIdx];
+        const visited = new Set<number>([fusionIdx]);
+        const cluster: number[] = [];
+
+        while (queue.length) {
+          const idx = queue.shift()!;
+          cluster.push(idx);
+          const neighbors = [
+            idx - numOfColumns, idx + numOfColumns,
+            (idx % numOfColumns !== 0) ? idx - 1 : -1,
+            ((idx+1) % numOfColumns !== 0) ? idx + 1 : -1
+          ];
+          for (const n of neighbors) {
+            if (n >=0 && n < prevGrid.length && !visited.has(n) && prevGrid[n] === targetVal) {
+              visited.add(n);
+              queue.push(n);
+            }
+          }
+        }
+
+        setFusionGroup(cluster);
+        await delay(500); // mostrar animación
+        setFusionGroup([]);
       }
 
       effectInfo.forEach(({ functor, args }) => {
-        console.log("📦 Efecto recibido:", functor, args);
         if (functor === 'newBlock' || functor === 'score') {
           setScore(s => s + args[0]);
         }
       });
 
       prevGrid = effectGrid;
-      await delay(300); // pausa breve entre efectos
+      await delay(300);
     }
-
     setWaiting(false);
   }
 
@@ -116,15 +129,11 @@ function Game() {
         grid={grid}
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
-        mergedIndex={mergedIndex}
+        fusionGroup={fusionGroup}
       />
       <div className='footer'>
         <div className='blockShoot'>
-          <Block
-          value={shootBlock!}
-          position={[0,0]}
-          // omitimos skipLaunch aquí para que siga haciendo launch
-          />
+          <Block value={shootBlock!} position={[0,0]} />
         </div>
       </div>
     </div>

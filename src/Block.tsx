@@ -6,22 +6,13 @@ export type Position = [number, number];
 interface BlockProps {
   value: number;
   position: Position;
-/** si es true, no hacemos la animación de lanzamiento */
+  /** si es true, no hacemos la animación de lanzamiento */
   skipLaunch?: boolean;
 }
 
-function Block({ value, position, skipLaunch }: BlockProps) {
+function Block({ value, position, skipLaunch = false }: BlockProps) {
   const [row, column] = position;
   const launchOffset = 200;
-
-// Preparamos un objeto con las props de animación sólo si NO skipLaunch
-   const animProps = skipLaunch
-     ? {}
-     : {
-         initial: { y: launchOffset, scale: 0.8, opacity: 0.8 },
-         animate: { y: 0, scale: 1, opacity: 1 },
-         transition: { duration: 0.25, ease: 'easeOut' as const },
-       };
 
   return (
     <motion.div
@@ -31,10 +22,13 @@ function Block({ value, position, skipLaunch }: BlockProps) {
         gridRow: row + 1,
         gridColumn: column + 1
       }}
-      initial={{ y: launchOffset, scale: 0.8, opacity: 0.8 }}
+      initial={
+        skipLaunch
+          ? false
+          : { y: launchOffset, scale: 0.8, opacity: 0.8 }
+      }
       animate={{ y: 0, scale: 1, opacity: 1 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
-      {...animProps}
     >
       {value !== 0 ? value : ''}
     </motion.div>
