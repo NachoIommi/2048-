@@ -7,6 +7,7 @@ interface BoardProps {
   numOfColumns: number;
   onLaneClick: (lane: number) => void;
   fusionGroup: number[];
+  
 }
 
 function Board({ grid, numOfColumns, onLaneClick, fusionGroup }: BoardProps) {

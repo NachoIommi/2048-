@@ -5,12 +5,19 @@ import Block from './Block';
 import { delay } from './util';
 
 export type Grid = (number | "-")[];
+
 interface EffectTerm extends PrologTerm {
   functor: "effect";
   args: [Grid, EffectInfoTerm[]];
 }
 
-type EffectInfoTerm = NewBlockTerm | ScoreTerm | PrologTerm;
+type EffectInfoTerm = NewBlockTerm | ScoreTerm | SideBlockTerm | PrologTerm;
+
+interface SideBlockTerm extends PrologTerm {
+  functor: "sideBlock";
+  args: [number, number]; // posición en la grilla, valor
+}
+
 interface NewBlockTerm extends PrologTerm {
   functor: "newBlock";
   args: [number];
@@ -26,6 +33,7 @@ function Game() {
   const [numOfColumns, setNumOfColumns] = useState<number | null>(null);
   const [score, setScore] = useState<number>(0);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
+  const [nextBlock, setNextBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [fusionGroup, setFusionGroup] = useState<number[]>([]);
 
@@ -37,14 +45,16 @@ function Game() {
   }
 
   async function initGame() {
-    const res = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block)');
+    const res = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid,Block2)');
     setGrid(res['Grid']);
-    setShootBlock(res['Block']);
+    setShootBlock(res['Block1']);
+    setNextBlock(res['Block2']);
     setNumOfColumns(res['NumOfColumns']);
   }
 
   async function handleLaneClick(lane: number) {
-    if (waiting) return;
+    if (waiting || nextBlock === null) return;
+
 
     const gridS = JSON.stringify(grid).replace(/"/g, '');
     const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
@@ -53,7 +63,8 @@ function Game() {
     const response = await pengine.query(queryS);
     if (response) {
       animateEffect(response['Effects']);
-      setShootBlock(response['Block']);
+      setShootBlock(nextBlock);            
+      setNextBlock(response['Block']);     
     } else {
       setWaiting(false);
     }
@@ -130,10 +141,17 @@ function Game() {
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
         fusionGroup={fusionGroup}
+       // sideBlocks={sideBlocks}
       />
-      <div className='footer'>
-        <div className='blockShoot'>
-          <Block value={shootBlock!} position={[0,0]} />
+      <div className="footer">
+        <div className="blockShoot">
+          {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
+          
+          {/* Bloque decorativo reducido */}
+          {nextBlock !== null &&
+            <div className="next-block">
+              <Block value={nextBlock} position={[0, 1]} skipLaunch />
+            </div>}
         </div>
       </div>
     </div>

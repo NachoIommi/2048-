@@ -68,3 +68,16 @@ body {
   border-top: 1px solid lightgray;
   padding: 5px;
 }
+.blockShoot {
+  position: relative; /* clave para que el hijo absoluto se posicione relativo a esto */
+  display: inline-block;
+}
+
+.next-block {
+  position: absolute;
+  top: 5px;
+  right: -70px; /* ajusta este valor según cómo lo quieras ubicado */
+  transform: scale(0.7);
+  opacity: 0.8;
+  pointer-events: none; /* evita que interfiera con clicks */
+}

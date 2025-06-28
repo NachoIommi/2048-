@@ -499,3 +499,7 @@ update_forbidden_blocks_accumulated(MergedVal) :-
         assertz(forbidden_blocks_accumulated(UniqueForbidden))
     ;   true  % Si MergedVal < 1024, no hacer nada
     ).
+
+/*--------------------------------------------------------------------
+  7. Booster Bloque Siguiente
+--------------------------------------------------------------------*/
