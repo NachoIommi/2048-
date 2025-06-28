@@ -5,6 +5,8 @@
     ]).
 
 :- discontiguous merge_cluster/8.
+:- discontiguous empty_cell/1.
+
 
 score(_).
 /*
@@ -414,6 +416,7 @@ forbidden_blocks_accumulated([]).
     Grid: Lista que representa la grilla
     Block: Valor del bloque aleatorio generado
 */
+/*
 randomBlock(Grid, 2) :-
     forall(member(X, Grid), empty_cell(X)).
 randomBlock(Grid, Block) :-
@@ -426,7 +429,26 @@ randomBlock(Grid, Block) :-
     (   AvailablePotencias = [] % Si no hay bloques disponibles, podemos manejar un caso de error o default
     ->  random_member(Block, AllPotencias) % En este caso, genera cualquiera si no hay opciones válidas
     ;   random_member(Block, AvailablePotencias)
+    ).*/
+
+randomBlock(Grid, 2) :-
+    forall(member(X, Grid), empty_cell(X)).
+
+randomBlock(Grid, Block) :-
+    max_num(Grid, MaxGrilla),
+    rango_valido(MaxGrilla, MinVal, MaxVal),
+    power_of_2(MaxVal, AllPotencias),
+    include(in_rango(MinVal, MaxVal), AllPotencias, RangoPermitido),
+    forbidden_blocks_accumulated(Forbidden),
+    exclude(member_of_forbidden(Forbidden), RangoPermitido, Disponibles),
+    ( Disponibles = [] ->
+        random_member(Block, RangoPermitido)  % fallback si no hay válidos
+    ;
+        random_member(Block, Disponibles)
     ).
+
+
+empty_cell('-').
 
 /*
     member_of_forbidden(+Forbidden,+Element)
@@ -499,6 +521,22 @@ update_forbidden_blocks_accumulated(MergedVal) :-
         assertz(forbidden_blocks_accumulated(UniqueForbidden))
     ;   true  % Si MergedVal < 1024, no hacer nada
     ).
+
+rango_valido(MaxGrilla, Min, Max) :-
+    ( MaxGrilla < 16     -> Min = 2,  Max = 4
+    ; MaxGrilla < 32     -> Min = 2,  Max = 8
+    ; MaxGrilla < 64     -> Min = 2,  Max = 16
+    ; MaxGrilla < 128    -> Min = 2,  Max = 32
+    ; MaxGrilla < 1024   -> Min = 2,  Max = 64
+    ; MaxGrilla < 2048   -> Min = 4,  Max = 128
+    ; MaxGrilla < 4096   -> Min = 8,  Max = 256
+    ; MaxGrilla < 16384  -> Min = 16, Max = 512
+    ;                       Min = 32, Max = 1024
+    ).
+
+in_rango(Min, Max, X) :-
+    X >= Min,
+    X =< Max.
 
 /*--------------------------------------------------------------------
   7. Booster Bloque Siguiente
