@@ -36,6 +36,8 @@ function Game() {
   const [nextBlock, setNextBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [fusionGroup, setFusionGroup] = useState<number[]>([]);
+  const [animateNextBlock, setAnimateNextBlock] = useState(false);
+
 
   useEffect(() => { connectToPenginesServer(); }, []);
   useEffect(() => { if (pengine) initGame(); }, [pengine]);
@@ -63,8 +65,13 @@ function Game() {
     const response = await pengine.query(queryS);
     if (response) {
       animateEffect(response['Effects']);
+      setAnimateNextBlock(true);
+
+      await delay(300);
+
       setShootBlock(nextBlock);            
-      setNextBlock(response['Block']);     
+      setNextBlock(response['Block']); 
+      setAnimateNextBlock(false);    
     } else {
       setWaiting(false);
     }
@@ -147,11 +154,11 @@ function Game() {
         <div className="blockShoot">
           {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
           
-          {/* Bloque decorativo reducido */}
+      
           {nextBlock !== null &&
-            <div className="next-block">
-              <Block value={nextBlock} position={[0, 1]} skipLaunch />
-            </div>}
+          <div className={`next-block ${animateNextBlock ? 'slide-to-left' : ''}`}>
+            <Block value={nextBlock} position={[0, 1]} skipLaunch />
+          </div>}
         </div>
       </div>
     </div>

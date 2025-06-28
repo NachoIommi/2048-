@@ -76,8 +76,14 @@ body {
 .next-block {
   position: absolute;
   top: 5px;
-  right: -70px; /* ajusta este valor según cómo lo quieras ubicado */
+  right: -70px;
   transform: scale(0.7);
   opacity: 0.8;
-  pointer-events: none; /* evita que interfiera con clicks */
+  pointer-events: none;
+  transition: transform 0.3s ease-in-out, right 0.3s ease-in-out;
+}
+
+.next-block.slide-to-left {
+  right: 0px;
+  transform: scale(1); /* opcional */
 }
