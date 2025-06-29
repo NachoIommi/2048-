@@ -176,9 +176,39 @@ body {
 }
 
 /* Avisos de combo, mismo estilo base pero otro color */
-.notification:contains('Combo') {
-  background: linear-gradient(135deg, #ff7e00, #ff0000);
+/* Estilo específico para avisos de combo */
+.combo-notification {
+  position: fixed;           /* fijo en pantalla */
+  top: 2rem;              /* distancia desde abajo */
+  right: auto;               /* distancia desde la derecha */
+  left: 20rem;                /* anulamos left */
+  transform: none;           /* quitamos el translateX(-50%) */
+  z-index: 150;              /* para que quede por encima */
+  background: linear-gradient(135deg, #e1ee2a, #0c5216);
   color: #fff;
+}
+/* Aviso 'Good!' */
+.good-notification {
+  position: fixed;
+  top: 2rem;          /* un poco más arriba para que no se solapen */
+  right: 20rem;
+  left: auto;
+  transform: none;
+  z-index: 150;
+  background: linear-gradient(135deg, #28a745, #218838); /* verde */
+  color: #fff;
+}
+
+/* Aviso 'Excellent!' */
+.excellent-notification {
+  position: fixed;
+  top: 7rem;         /* más arriba aún */
+  right: auto;
+  left: 20rem;
+  transform: none;
+  z-index: 152;
+  background: linear-gradient(135deg, #ffd700, #ffb400); /* dorado */
+  color: #000;
 }
 
 @keyframes bounceFade {

@@ -151,12 +151,24 @@ function Game() {
 
         // 👉 Mostrar aviso "Combo x N" si el cluster tiene más de 2 bloques
         if (cluster.length > 2) {
-          setNotifications(prev => [...prev, `🔥 Combo x ${cluster.length}`]);
-          setTimeout(() => {
-            setNotifications(prev => prev.slice(1));
-          }, 5000);
+  const comboMsg = `🔥 Combo x ${cluster.length}`;
+  const newNotifs = [comboMsg];
+
+  // Carteles adicionales según tamaño del combo
+        if (cluster.length === 3) {
+          newNotifs.push('👍 Good!');
+        } else if (cluster.length === 4) {
+          newNotifs.push('✨ Excellent!');
         }
+
+        setNotifications(prev => [...prev, ...newNotifs]);
+
+        setTimeout(() => {
+          setNotifications(prev => prev.slice(newNotifs.length));
+        }, 5000);
       }
+
+    }
 
       // Procesar efectos individuales
       effectInfo.forEach(({ functor, args }) => {
@@ -166,7 +178,7 @@ function Game() {
           setScore(s => s + val);
           if (val > highestBlockReached) {
             setHighestBlockReached(val);
-            setNotifications(prev => [...prev, `🎉 New block aed: ${val}`]);
+            setNotifications(prev => [...prev, `🎉 New block added: ${val}`]);
             setTimeout(() => {
               setNotifications(prev => prev.slice(1));
             }, 5000);
@@ -205,9 +217,22 @@ function Game() {
     <div className="game">
       {notifications.length > 0 && (
         <div className="notification-container">
+          {notifications.length > 0 && (
+          <div className="notification-container">
           {notifications.map((msg, i) => (
-            <div key={i} className="notification">{msg}</div>
-          ))}
+          <div
+            key={i}
+            className={`notification ${
+            msg.includes('Combo') ? 'combo-notification' :
+            msg.includes('Good!') ? 'good-notification' :
+            msg.includes('Excellent!') ? 'excellent-notification' : ''
+          }`}
+          >
+        {msg}
+      </div>
+    ))}
+  </div>
+)}
         </div>
       )}
 
