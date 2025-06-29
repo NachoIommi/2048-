@@ -543,6 +543,22 @@ in_rango(Min, Max, X) :-
     X >= Min,
     X =< Max.
 
+/**
+ * Bloque Maximo Shooteable
+ * 
+ * */
+
+% max_shootable_block(+Grid, -Max)
+max_shootable_block(Grid, Max) :-
+    max_num(Grid, MaxGrilla),
+    rango_valido(MaxGrilla, MinVal, MaxVal),
+    power_of_2(MaxVal, AllPotencias),
+    include(in_rango(MinVal, MaxVal), AllPotencias, RangoPermitido),
+    forbidden_blocks_accumulated(Forbidden),
+    exclude(member_of_forbidden(Forbidden), RangoPermitido, Disponibles),
+    max_list(Disponibles, Max).
+
+
 /*--------------------------------------------------------------------
   7. Booster Bloque Siguiente
 --------------------------------------------------------------------*/

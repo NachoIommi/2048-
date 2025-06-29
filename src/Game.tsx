@@ -28,6 +28,11 @@ interface ScoreTerm extends PrologTerm {
   args: [number];
 }
 
+interface Notification {
+  id: number;
+  msg: string;
+}
+
 function Game() {
   const [pengine, setPengine] = useState<any>(null);
   const [grid, setGrid] = useState<Grid | null>(null);
@@ -40,35 +45,25 @@ function Game() {
   const [animateNextBlock, setAnimateNextBlock] = useState(false);
   const [isNextBlockRevealed, setIsNextBlockRevealed] = useState(false);
   const [revealProgress, setRevealProgress] = useState(0);
-
   const [highestBlockReached, setHighestBlockReached] = useState<number>(0);
-  const [notifications, setNotifications] = useState<string[]>([]);
+  const [maxShooteable, setMaxShooteable] = useState<number>(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationCounter, setNotificationCounter] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
 
-  const [gameOver, setGameOver] = useState<boolean>(false);
+  function pushNotification(msg: string) {
+    setNotificationCounter(id => {
+      const newId = id + 1;
+      setNotifications(prev => [...prev, { id: newId, msg }]);
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== newId));
+      }, 5000);
+      return newId;
+    });
+  }
 
   useEffect(() => { connectToPenginesServer(); }, []);
   useEffect(() => { if (pengine) initGame(); }, [pengine]);
-
-  function revealNextBlock() {
-    if (isNextBlockRevealed) return;
-    setIsNextBlockRevealed(true);
-    setRevealProgress(0);
-
-    const start = Date.now();
-    const duration = 10000;
-    const interval = 100;
-
-    const timer = setInterval(() => {
-      const elapsed = Date.now() - start;
-      if (elapsed >= duration) {
-        clearInterval(timer);
-        setIsNextBlockRevealed(false);
-        setRevealProgress(0);
-      } else {
-        setRevealProgress(elapsed / duration);
-      }
-    }, interval);
-  }
 
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create());
@@ -81,6 +76,7 @@ function Game() {
     setNextBlock(res['Block2']);
     setNumOfColumns(res['NumOfColumns']);
     setHighestBlockReached(0);
+    setMaxShooteable(0);
     setNotifications([]);
     setGameOver(false);
   }
@@ -107,11 +103,10 @@ function Game() {
 
   async function animateEffect(effects: EffectTerm[]) {
     let prevGrid = grid;
-    
 
     for (const effect of effects) {
       const [effectGrid, effectInfo] = effect.args;
-      // Detectar Game Over
+
       if (!effectGrid.includes('-')) {
         setGrid(effectGrid);
         setGameOver(true);
@@ -120,7 +115,7 @@ function Game() {
 
       setGrid(effectGrid);
 
-      // Detectar fusión y combo
+      // Detectar fusión
       let fusionIdx: number | null = null;
       if (prevGrid) {
         for (let j = 0; j < effectGrid.length; j++) {
@@ -158,28 +153,13 @@ function Game() {
         await delay(500);
         setFusionGroup([]);
 
-        // 👉 Mostrar aviso "Combo x N" si el cluster tiene más de 2 bloques
         if (cluster.length > 2) {
-  const comboMsg = `🔥 Combo x ${cluster.length}`;
-  const newNotifs = [comboMsg];
-
-  // Carteles adicionales según tamaño del combo
-        if (cluster.length === 3) {
-          newNotifs.push('👍 Good!');
-        } else if (cluster.length === 4) {
-          newNotifs.push('✨ Excellent!');
+          pushNotification(`🔥 Combo x ${cluster.length}`);
+          if (cluster.length === 3) pushNotification('👍 Good!');
+          else if (cluster.length === 4) pushNotification('✨ Excellent!');
         }
-
-        setNotifications(prev => [...prev, ...newNotifs]);
-
-        setTimeout(() => {
-          setNotifications(prev => prev.slice(newNotifs.length));
-        }, 5000);
       }
 
-    }
-
-      // Procesar efectos individuales
       effectInfo.forEach(({ functor, args }) => {
         const val = args[0];
 
@@ -187,10 +167,7 @@ function Game() {
           setScore(s => s + val);
           if (val > highestBlockReached) {
             setHighestBlockReached(val);
-            setNotifications(prev => [...prev, `🎉 New block added: ${val}`]);
-            setTimeout(() => {
-              setNotifications(prev => prev.slice(1));
-            }, 5000);
+            pushNotification(`🎉 Nuevo Bloque Maximo Alcanzado: ${val}`);
           }
         }
 
@@ -198,18 +175,8 @@ function Game() {
           setScore(s => s + val);
         }
 
-        if (functor === 'unlockShooter') {
-          setNotifications(prev => [...prev, `🆕 Block added to shooter: ${val}`]);
-          setTimeout(() => {
-            setNotifications(prev => prev.slice(1));
-          }, 5000);
-        }
-
         if (functor === 'eliminatedBlock') {
-          setNotifications(prev => [...prev, `❌ Eliminated block: ${val}`]);
-          setTimeout(() => {
-            setNotifications(prev => prev.slice(1));
-          }, 5000);
+          pushNotification(`❌ Eliminated block: ${val}`);
         }
       });
 
@@ -217,7 +184,39 @@ function Game() {
       await delay(300);
     }
 
+    // Consultar nuevo maxShooteable
+    const gridS = JSON.stringify(grid).replace(/"/g, '');
+    const res = await pengine.query(`max_shootable_block(${gridS}, Max)`);
+    if (res) {
+      const newMax = res['Max'];
+      if (newMax > maxShooteable) {
+        setMaxShooteable(newMax);
+        pushNotification(`🚀 New Block Added: ${newMax}!`);
+      }
+    }
+
     setWaiting(false);
+  }
+
+  function revealNextBlock() {
+    if (isNextBlockRevealed) return;
+    setIsNextBlockRevealed(true);
+    setRevealProgress(0);
+
+    const start = Date.now();
+    const duration = 10000;
+    const interval = 100;
+
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      if (elapsed >= duration) {
+        clearInterval(timer);
+        setIsNextBlockRevealed(false);
+        setRevealProgress(0);
+      } else {
+        setRevealProgress(elapsed / duration);
+      }
+    }, interval);
   }
 
   if (grid === null) return null;
@@ -225,33 +224,25 @@ function Game() {
   return (
     <div className="game">
       {gameOver && (
-      <div className="gameover-overlay">
-        <div className="gameover-content">
-          <h1>Game Over</h1>
-          <button onClick={() => window.location.reload()}>
-            Reiniciar
-          </button>
+        <div className="gameover-overlay">
+          <div className="gameover-content">
+            <h1>Game Over</h1>
+            <button onClick={() => window.location.reload()}>Reiniciar</button>
+          </div>
         </div>
-      </div>
       )}
+
       {notifications.length > 0 && (
         <div className="notification-container">
-          {notifications.length > 0 && (
-          <div className="notification-container">
-          {notifications.map((msg, i) => (
-          <div
-            key={i}
-            className={`notification ${
-            msg.includes('Combo') ? 'combo-notification' :
-            msg.includes('Good!') ? 'good-notification' :
-            msg.includes('Excellent!') ? 'excellent-notification' : ''
-          }`}
-          >
-        {msg}
-      </div>
-    ))}
-  </div>
-)}
+          {notifications.map(({ id, msg }) => (
+            <div key={id} className={`notification ${
+              msg.includes('Combo') ? 'combo-notification' :
+              msg.includes('Good!') ? 'good-notification' :
+              msg.includes('Excellent!') ? 'excellent-notification' : ''
+            }`}>
+              {msg}
+            </div>
+          ))}
         </div>
       )}
 
@@ -276,10 +267,7 @@ function Game() {
                   <>
                     <Block value={nextBlock} position={[0, 1]} skipLaunch />
                     <div className="progress-bar">
-                      <div
-                        className="progress-bar-fill"
-                        style={{ width: `${revealProgress * 100}%` }}
-                      />
+                      <div className="progress-bar-fill" style={{ width: `${revealProgress * 100}%` }} />
                     </div>
                   </>
                 ) : (
