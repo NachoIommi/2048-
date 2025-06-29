@@ -107,29 +107,7 @@ function Game() {
 
     for (const effect of effects) {
       const [effectGrid, effectInfo] = effect.args;
-
-      // Detectar nuevo bloque máximo
-      const numericCells = effectGrid.filter(v => v !== '-') as number[];
-      const maxInThisGrid = Math.max(...numericCells);
-
-      if (maxInThisGrid > highestBlockReached) {
-        setHighestBlockReached(maxInThisGrid);
-
-        const newNotifs: string[] = [`🎉 New block added: ${maxInThisGrid}`];
-
-        if (maxInThisGrid >= 1024) {
-          const factor = maxInThisGrid / 1024;
-          if ((factor & (factor - 1)) === 0) {
-            const eliminated = maxInThisGrid / 512;
-            newNotifs.push(`❌ Eliminated block: ${eliminated}`);
-          }
-        }
-
-        setNotifications(prev => [...prev, ...newNotifs]);
-        setTimeout(() => {
-          setNotifications(prev => prev.slice(newNotifs.length));
-        }, 5000);
-      }
+      
 
       setGrid(effectGrid);
 
@@ -182,11 +160,32 @@ function Game() {
 
       // Procesar efectos individuales
       effectInfo.forEach(({ functor, args }) => {
-        if (functor === 'newBlock' || functor === 'score') {
-          setScore(s => s + args[0]);
-        } else if (functor === 'unlockShooter' || functor === 'eliminatedBlock') {
-          const val = args[0];
+        const val = args[0];
+
+        if (functor === 'newBlock') {
+          setScore(s => s + val);
+          if (val > highestBlockReached) {
+            setHighestBlockReached(val);
+            setNotifications(prev => [...prev, `🎉 New block aed: ${val}`]);
+            setTimeout(() => {
+              setNotifications(prev => prev.slice(1));
+            }, 5000);
+          }
+        }
+
+        if (functor === 'score') {
+          setScore(s => s + val);
+        }
+
+        if (functor === 'unlockShooter') {
           setNotifications(prev => [...prev, `🆕 Block added to shooter: ${val}`]);
+          setTimeout(() => {
+            setNotifications(prev => prev.slice(1));
+          }, 5000);
+        }
+
+        if (functor === 'eliminatedBlock') {
+          setNotifications(prev => [...prev, `❌ Eliminated block: ${val}`]);
           setTimeout(() => {
             setNotifications(prev => prev.slice(1));
           }, 5000);

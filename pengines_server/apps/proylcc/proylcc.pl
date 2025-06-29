@@ -305,25 +305,26 @@ shoot(Block,Col,Grid,NCols,Effects) :-
     drop_block(Block,Col,Grid,NCols,G1,RowPlaced),
     index(RowPlaced,Col,NCols,IdxPlaced0),
     get_cell(IdxPlaced0,G1,Val0),
-    cascade_fuse(IdxPlaced0,G1,NCols,Val0,GridsAsc),
-    grids_to_effects(GridsAsc,Effects).
+    % No InitialEffects con newBlock aquí.
+    cascade_fuse(IdxPlaced0, G1, NCols, Val0, GridsAndEffectsAsc),
+    grids_to_effects(GridsAndEffectsAsc, Effects). % grids_to_effects seguirá procesando la lista.
 
 /*
     cascade_fuse(+IdxOrig,+Grid,+NCols,+Val,+GridsAsc)
     Realiza cascadas de fusiones a partir del bloque colocado en la grilla.
-    IdxOrig: Indice del bloque colocado originalmente
+    IdxOrig: Índice del bloque colocado originalmente
     Grid: Lista que representa la grilla
-    NCols: Numero de columnas de la grilla
+    NCols: Número de columnas de la grilla
     Val: Valor del bloque colocado
     GridsAsc: Lista de grillas resultantes de las fusiones
 */
-cascade_fuse(IdxOrig, Grid, NCols, _Val, GridsAndEffectsAsc) :- % Cambié el nombre del parámetro para mayor claridad
-    % El acumulador inicial para cascade_fuse_ es la primera grilla con una lista vacía de efectos.
-    % Los efectos de score se añadirán a medida que ocurran fusiones.
-    cascade_fuse_(Grid, NCols, IdxOrig, [effect(Grid, [])], RevGridsAndEffects), % <-- ¡Aquí el cambio!
+cascade_fuse(IdxOrig, Grid, NCols, _Val, GridsAndEffectsAsc) :-
+    % El acumulador inicial para cascade_fuse_ es la primera grilla con una lista vacía de efectos individuales.
+    % Los efectos de score y newBlock (por fusión) se añadirán a medida que ocurran.
+    cascade_fuse_(Grid, NCols, IdxOrig, [effect(Grid, [])], RevGridsAndEffects),
     reverse(RevGridsAndEffects, GridsAndEffectsAsc).
 
-cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :- % Cambié el nombre del parámetro para mayor claridad
+cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :-
     dims(Grid, NCols, NRows),
     empty_cell(Empty),
     findall((I, Cluster),
@@ -347,11 +348,13 @@ cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :- % Cambié el
         nth1(I, Grid, Val),
         merge_cluster(Cluster, I, Grid, Val, NCols, Grid2, Val2, NewIdxOrig),
         update_forbidden_blocks_accumulated(Val2),
-        
-        % ¡AQUÍ ES DONDE DEBES AGREGAR EL EFECTO score(Val2)!
-        CurrentStepIndividualEffects = [score(Val2)], % <-- ¡Esta es la línea clave!
 
-        cascade_fuse_(Grid2, NCols, NewIdxOrig, [effect(Grid2, CurrentStepIndividualEffects)|AccEffects], FinalAccEffects) % <-- ¡Y este cambio en la recursión!
+        % ¡AQUÍ ES DONDE SE AGREGA EL EFECTO newBlock(Val2) y score(Val2)!
+        % Se generó un nuevo bloque con valor Val2 a partir de una fusión.
+        CurrentStepIndividualEffects = [newBlock(Val2), score(Val2)], % <-- ¡ESTE ES EL CAMBIO CLAVE!
+
+        % Prepend the new effect(Grid2, CurrentStepIndividualEffects) to the accumulator
+        cascade_fuse_(Grid2, NCols, NewIdxOrig, [effect(Grid2, CurrentStepIndividualEffects)|AccEffects], FinalAccEffects)
     ).
 
 /*--------------------------------------------------------------------
@@ -359,31 +362,34 @@ cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :- % Cambié el
 --------------------------------------------------------------------*/
 
 /*
-    grids_to_effects(+Grids,+Effects)
-    Convierte una lista de grillas en una lista de efectos.
-    Grids: Lista de grillas resultantes de las fusiones
-    Effects: Lista de efectos correspondientes a las grillas
+    grids_to_effects(+GridsAndIndividualEffects,+Effects)
+    Convierte una lista de grillas (con sus efectos individuales) en una lista final de efectos.
+    GridsAndIndividualEffects: Lista de `effect(Grid, IndividualEffects)` resultantes de las fusiones
+    Effects: Lista de efectos finales, combinando `newBlock` y `score`
 */
-grids_to_effects([], []). % Caso base: lista vacía
+grids_to_effects([], []).
 
-% Última grilla en la secuencia: simplemente la grilla con sus efectos individuales
+% Caso base para la última grilla en la secuencia
 grids_to_effects([effect(G, IndividualEffects)], [effect(G, IndividualEffects)]).
 
-% Procesa pares de grillas para detectar newBlock y combinar con efectos individuales
-grids_to_effects([effect(PrevGrid, PrevIndividualEffects), effect(NextGrid, NextIndividualEffects)|Rest], [effect(PrevGrid, CombinedEffectsForPrev)|Tail]) :-
-    % Detecta el newBlock (si lo hay) entre PrevGrid y NextGrid
-    new_block_between(PrevGrid, NextGrid, NewBlockVal),
-    (   NewBlockVal == none -> DetectedNewBlockEffect = [] ; DetectedNewBlockEffect = [newBlock(NewBlockVal)]),
-    
-    % Combina los efectos individuales que ya traía PrevGrid con el efecto de newBlock
-    append(PrevIndividualEffects, DetectedNewBlockEffect, CombinedEffectsForPrev),
-    
-    % Continúa recursivamente con el resto de la lista
+% Procesa pares de grillas.
+% NOTA: new_block_between ya NO es necesario aquí para detectar el bloque *generado por fusión*.
+% Ese ya lo registramos en cascade_fuse_.
+% Sin embargo, new_block_between podría ser útil si un bloque "cae" en un espacio vacío después de una fusión,
+% pero por lo que entiendo, quieres el que *resulta* de la fusión.
+% Para simplificar y cumplir tu requisito exacto, podemos ignorar new_block_between aquí.
+grids_to_effects([effect(PrevGrid, PrevIndividualEffects), effect(NextGrid, NextIndividualEffects)|Rest], [effect(PrevGrid, PrevIndividualEffects)|Tail]) :-
+    % Simplemente pasamos los efectos individuales que ya fueron registrados.
+    % La detección de newBlock (por fusión) y score ya ocurrió en cascade_fuse_.
+    % new_block_between podría ser útil para otros tipos de "nuevos bloques",
+    % pero para tu caso de "cuando se fusione", ya lo tenemos.
     grids_to_effects([effect(NextGrid, NextIndividualEffects)|Rest], Tail).
 
 
 /*
     new_block_between(+G1,+G2,-Val)
+    (Este predicado ya no sería necesario para tu requisito específico de 'newBlock por fusión',
+    pero lo dejo por si tiene otros usos en tu lógica general).
     Determina el valor del nuevo bloque entre dos grillas G1 y G2.
     G1: Grilla anterior
     G2: Grilla siguiente
@@ -393,7 +399,6 @@ new_block_between(G1,G2,Val) :-
     empty_cell(Empty),
     findall(V,(nth1(I,G2,V), nth1(I,G1,Empty), number(V)),Vs),
     (   Vs = [Val|_] -> true ; Val = none).
-
 /*--------------------------------------------------------------------
   6. randomBlock (con cambios para bloques prohibidos)
 --------------------------------------------------------------------*/
