@@ -68,8 +68,9 @@ body {
   border-top: 1px solid lightgray;
   padding: 5px;
 }
+
 .blockShoot {
-  position: relative; /* clave para que el hijo absoluto se posicione relativo a esto */
+  position: relative;
   display: inline-block;
 }
 
@@ -85,7 +86,7 @@ body {
 
 .next-block.slide-to-left {
   right: 0px;
-  transform: scale(1); /* opcional */
+  transform: scale(1);
 }
 
 .next-block-wrapper {
@@ -174,6 +175,12 @@ body {
   white-space: nowrap;
 }
 
+/* Avisos de combo, mismo estilo base pero otro color */
+.notification:contains('Combo') {
+  background: linear-gradient(135deg, #ff7e00, #ff0000);
+  color: #fff;
+}
+
 @keyframes bounceFade {
   0% {
     opacity: 0;
@@ -194,4 +201,3 @@ body {
     transform: translateY(-20px) scale(0.95);
   }
 }
-

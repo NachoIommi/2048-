@@ -103,95 +103,102 @@ function Game() {
   }
 
   async function animateEffect(effects: EffectTerm[]) {
-  let prevGrid = grid;
+    let prevGrid = grid;
 
-  for (const effect of effects) {
-    const [effectGrid, effectInfo] = effect.args;
+    for (const effect of effects) {
+      const [effectGrid, effectInfo] = effect.args;
 
-    // Detectar nuevo bloque máximo
-    const numericCells = effectGrid.filter(v => v !== '-') as number[];
-    const maxInThisGrid = Math.max(...numericCells);
+      // Detectar nuevo bloque máximo
+      const numericCells = effectGrid.filter(v => v !== '-') as number[];
+      const maxInThisGrid = Math.max(...numericCells);
 
-    if (maxInThisGrid > highestBlockReached) {
-      setHighestBlockReached(maxInThisGrid);
+      if (maxInThisGrid > highestBlockReached) {
+        setHighestBlockReached(maxInThisGrid);
 
-      const newNotifs: string[] = [`🎉 New block added: ${maxInThisGrid}`];
+        const newNotifs: string[] = [`🎉 New block added: ${maxInThisGrid}`];
 
-      if (maxInThisGrid >= 1024) {
-        const factor = maxInThisGrid / 1024;
-        if ((factor & (factor - 1)) === 0) {
-          const eliminated = maxInThisGrid / 512;
-          newNotifs.push(`❌ Eliminated block: ${eliminated}`);
+        if (maxInThisGrid >= 1024) {
+          const factor = maxInThisGrid / 1024;
+          if ((factor & (factor - 1)) === 0) {
+            const eliminated = maxInThisGrid / 512;
+            newNotifs.push(`❌ Eliminated block: ${eliminated}`);
+          }
         }
+
+        setNotifications(prev => [...prev, ...newNotifs]);
+        setTimeout(() => {
+          setNotifications(prev => prev.slice(newNotifs.length));
+        }, 5000);
       }
 
-      setNotifications(prev => [...prev, ...newNotifs]);
-      setTimeout(() => {
-        setNotifications(prev => prev.slice(newNotifs.length));
-      }, 5000);
-    }
+      setGrid(effectGrid);
 
-    setGrid(effectGrid);
-
-    // Animación de fusión (sin cambios)
-    let fusionIdx: number | null = null;
-    if (prevGrid) {
-      for (let j = 0; j < effectGrid.length; j++) {
-        const prev = prevGrid[j], curr = effectGrid[j];
-        if (prev !== '-' && curr !== '-' && Number(curr) > Number(prev)) {
-          fusionIdx = j;
-          break;
-        }
-      }
-    }
-
-    if (fusionIdx !== null && prevGrid && numOfColumns) {
-      const targetVal = prevGrid[fusionIdx];
-      const queue = [fusionIdx];
-      const visited = new Set<number>([fusionIdx]);
-      const cluster: number[] = [];
-
-      while (queue.length) {
-        const idx = queue.shift()!;
-        cluster.push(idx);
-        const neighbors = [
-          idx - numOfColumns, idx + numOfColumns,
-          (idx % numOfColumns !== 0) ? idx - 1 : -1,
-          ((idx + 1) % numOfColumns !== 0) ? idx + 1 : -1
-        ];
-        for (const n of neighbors) {
-          if (n >= 0 && n < prevGrid.length && !visited.has(n) && prevGrid[n] === targetVal) {
-            visited.add(n);
-            queue.push(n);
+      // Detectar fusión y combo
+      let fusionIdx: number | null = null;
+      if (prevGrid) {
+        for (let j = 0; j < effectGrid.length; j++) {
+          const prev = prevGrid[j], curr = effectGrid[j];
+          if (prev !== '-' && curr !== '-' && Number(curr) > Number(prev)) {
+            fusionIdx = j;
+            break;
           }
         }
       }
 
-      setFusionGroup(cluster);
-      await delay(500);
-      setFusionGroup([]);
+      if (fusionIdx !== null && prevGrid && numOfColumns) {
+        const targetVal = prevGrid[fusionIdx];
+        const queue = [fusionIdx];
+        const visited = new Set<number>([fusionIdx]);
+        const cluster: number[] = [];
+
+        while (queue.length) {
+          const idx = queue.shift()!;
+          cluster.push(idx);
+          const neighbors = [
+            idx - numOfColumns, idx + numOfColumns,
+            (idx % numOfColumns !== 0) ? idx - 1 : -1,
+            ((idx + 1) % numOfColumns !== 0) ? idx + 1 : -1
+          ];
+          for (const n of neighbors) {
+            if (n >= 0 && n < prevGrid.length && !visited.has(n) && prevGrid[n] === targetVal) {
+              visited.add(n);
+              queue.push(n);
+            }
+          }
+        }
+
+        setFusionGroup(cluster);
+        await delay(500);
+        setFusionGroup([]);
+
+        // 👉 Mostrar aviso "Combo x N" si el cluster tiene más de 2 bloques
+        if (cluster.length > 2) {
+          setNotifications(prev => [...prev, `🔥 Combo x ${cluster.length}`]);
+          setTimeout(() => {
+            setNotifications(prev => prev.slice(1));
+          }, 5000);
+        }
+      }
+
+      // Procesar efectos individuales
+      effectInfo.forEach(({ functor, args }) => {
+        if (functor === 'newBlock' || functor === 'score') {
+          setScore(s => s + args[0]);
+        } else if (functor === 'unlockShooter' || functor === 'eliminatedBlock') {
+          const val = args[0];
+          setNotifications(prev => [...prev, `🆕 Block added to shooter: ${val}`]);
+          setTimeout(() => {
+            setNotifications(prev => prev.slice(1));
+          }, 5000);
+        }
+      });
+
+      prevGrid = effectGrid;
+      await delay(300);
     }
 
-    // Procesar efectos individuales
-    effectInfo.forEach(({ functor, args }) => {
-      if (functor === 'newBlock' || functor === 'score') {
-        setScore(s => s + args[0]);
-      } else if (functor === 'unlockShooter' || functor === 'eliminatedBlock') {
-        const val = args[0];
-        setNotifications(prev => [...prev, `🆕 Block added to shooter: ${val}`]);
-        setTimeout(() => {
-          setNotifications(prev => prev.slice(1));
-        }, 5000);
-      }
-    });
-
-    prevGrid = effectGrid;
-    await delay(300);
+    setWaiting(false);
   }
-
-  setWaiting(false);
-}
-
 
   if (grid === null) return null;
 
