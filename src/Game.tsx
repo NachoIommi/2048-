@@ -44,6 +44,8 @@ function Game() {
   const [highestBlockReached, setHighestBlockReached] = useState<number>(0);
   const [notifications, setNotifications] = useState<string[]>([]);
 
+  const [gameOver, setGameOver] = useState<boolean>(false);
+
   useEffect(() => { connectToPenginesServer(); }, []);
   useEffect(() => { if (pengine) initGame(); }, [pengine]);
 
@@ -80,6 +82,7 @@ function Game() {
     setNumOfColumns(res['NumOfColumns']);
     setHighestBlockReached(0);
     setNotifications([]);
+    setGameOver(false);
   }
 
   async function handleLaneClick(lane: number) {
@@ -104,10 +107,16 @@ function Game() {
 
   async function animateEffect(effects: EffectTerm[]) {
     let prevGrid = grid;
+    
 
     for (const effect of effects) {
       const [effectGrid, effectInfo] = effect.args;
-      
+      // Detectar Game Over
+      if (!effectGrid.includes('-')) {
+        setGrid(effectGrid);
+        setGameOver(true);
+        return;
+      }
 
       setGrid(effectGrid);
 
@@ -215,6 +224,16 @@ function Game() {
 
   return (
     <div className="game">
+      {gameOver && (
+      <div className="gameover-overlay">
+        <div className="gameover-content">
+          <h1>Game Over</h1>
+          <button onClick={() => window.location.reload()}>
+            Reiniciar
+          </button>
+        </div>
+      </div>
+      )}
       {notifications.length > 0 && (
         <div className="notification-container">
           {notifications.length > 0 && (
