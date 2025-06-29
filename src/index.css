@@ -124,7 +124,74 @@ body {
 
 .progress-bar-fill {
   height: 100%;
-  background: rgb(36, 79, 220);
+  background: rgb(36, 153, 220);
   transition: width 0.1s linear;
   border-radius: 3px 0 0 3px;
 }
+
+.max-message {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #00ffff;
+  padding: 40px 40px;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: bold;
+  box-shadow: 0 0 12px rgba(0,0,0,0.4);
+  z-index: 1000;
+  animation: fadein 0.3s ease-in-out;
+  opacity: 0.7;
+}
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateX(-50%) scale(0.9); }
+  to   { opacity: 0.7; transform: translateX(-50%) scale(1); }
+}
+
+.notification-container {
+  position: absolute;
+  top: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.notification {
+  background: linear-gradient(135deg, #0886e7, #0066ff);
+  color: #222;
+  padding: 1rem 2rem;
+  border-radius: 2rem;
+  font-size: 1.25rem;
+  font-weight: bold;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: bounceFade 5s ease-in-out forwards;
+  white-space: nowrap;
+}
+
+@keyframes bounceFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0) scale(1.05);
+  }
+  20% {
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+}
+

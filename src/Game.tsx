@@ -15,13 +15,14 @@ type EffectInfoTerm = NewBlockTerm | ScoreTerm | SideBlockTerm | PrologTerm;
 
 interface SideBlockTerm extends PrologTerm {
   functor: "sideBlock";
-  args: [number, number]; // posición en la grilla, valor
+  args: [number, number];
 }
 
 interface NewBlockTerm extends PrologTerm {
   functor: "newBlock";
   args: [number];
 }
+
 interface ScoreTerm extends PrologTerm {
   functor: "score";
   args: [number];
@@ -40,32 +41,32 @@ function Game() {
   const [isNextBlockRevealed, setIsNextBlockRevealed] = useState(false);
   const [revealProgress, setRevealProgress] = useState(0);
 
+  const [highestBlockReached, setHighestBlockReached] = useState<number>(0);
+  const [notifications, setNotifications] = useState<string[]>([]);
 
   useEffect(() => { connectToPenginesServer(); }, []);
   useEffect(() => { if (pengine) initGame(); }, [pengine]);
 
-
   function revealNextBlock() {
-  if (isNextBlockRevealed) return;
-  setIsNextBlockRevealed(true);
-  setRevealProgress(0);
+    if (isNextBlockRevealed) return;
+    setIsNextBlockRevealed(true);
+    setRevealProgress(0);
 
-  const start = Date.now();
-  const duration = 10000; 
-  const interval = 100;   // actualizar cada 100ms
+    const start = Date.now();
+    const duration = 10000;
+    const interval = 100;
 
-  const timer = setInterval(() => {
-    const elapsed = Date.now() - start;
-    if (elapsed >= duration) {
-      clearInterval(timer);
-      setIsNextBlockRevealed(false);
-      setRevealProgress(0);
-    } else {
-      setRevealProgress(elapsed / duration);
-    }
-  }, interval);
-}
-
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      if (elapsed >= duration) {
+        clearInterval(timer);
+        setIsNextBlockRevealed(false);
+        setRevealProgress(0);
+      } else {
+        setRevealProgress(elapsed / duration);
+      }
+    }, interval);
+  }
 
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create());
@@ -77,11 +78,12 @@ function Game() {
     setShootBlock(res['Block1']);
     setNextBlock(res['Block2']);
     setNumOfColumns(res['NumOfColumns']);
+    setHighestBlockReached(0);
+    setNotifications([]);
   }
 
   async function handleLaneClick(lane: number) {
     if (waiting || nextBlock === null) return;
-
 
     const gridS = JSON.stringify(grid).replace(/"/g, '');
     const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
@@ -91,114 +93,150 @@ function Game() {
     if (response) {
       animateEffect(response['Effects']);
       setAnimateNextBlock(true);
-
       await delay(300);
-
-      setShootBlock(nextBlock);            
-      setNextBlock(response['Block']); 
-      setAnimateNextBlock(false);    
+      setShootBlock(nextBlock);
+      setNextBlock(response['Block']);
+      setAnimateNextBlock(false);
     } else {
       setWaiting(false);
     }
   }
 
   async function animateEffect(effects: EffectTerm[]) {
-    let prevGrid = grid;
+  let prevGrid = grid;
 
-    for (const effect of effects) {
-      const [effectGrid, effectInfo] = effect.args;
+  for (const effect of effects) {
+    const [effectGrid, effectInfo] = effect.args;
 
-      // Detectar receptor: celda que aumenta de valor
-      let fusionIdx: number | null = null;
-      if (prevGrid) {
-        for (let j = 0; j < effectGrid.length; j++) {
-          const prev = prevGrid[j], curr = effectGrid[j];
-          if (prev !== '-' && curr !== '-' && Number(curr) > Number(prev)) {
-            fusionIdx = j;
-            break;
-          }
+    // Detectar nuevo bloque máximo
+    const numericCells = effectGrid.filter(v => v !== '-') as number[];
+    const maxInThisGrid = Math.max(...numericCells);
+
+    if (maxInThisGrid > highestBlockReached) {
+      setHighestBlockReached(maxInThisGrid);
+
+      const newNotifs: string[] = [`🎉 New block added: ${maxInThisGrid}`];
+
+      if (maxInThisGrid >= 1024) {
+        const factor = maxInThisGrid / 1024;
+        if ((factor & (factor - 1)) === 0) {
+          const eliminated = maxInThisGrid / 512;
+          newNotifs.push(`❌ Eliminated block: ${eliminated}`);
         }
       }
 
-      setGrid(effectGrid);
-
-      if (fusionIdx !== null && prevGrid && numOfColumns) {
-        const targetVal = prevGrid[fusionIdx];
-        const queue = [fusionIdx];
-        const visited = new Set<number>([fusionIdx]);
-        const cluster: number[] = [];
-
-        while (queue.length) {
-          const idx = queue.shift()!;
-          cluster.push(idx);
-          const neighbors = [
-            idx - numOfColumns, idx + numOfColumns,
-            (idx % numOfColumns !== 0) ? idx - 1 : -1,
-            ((idx+1) % numOfColumns !== 0) ? idx + 1 : -1
-          ];
-          for (const n of neighbors) {
-            if (n >=0 && n < prevGrid.length && !visited.has(n) && prevGrid[n] === targetVal) {
-              visited.add(n);
-              queue.push(n);
-            }
-          }
-        }
-
-        setFusionGroup(cluster);
-        await delay(500); // mostrar animación
-        setFusionGroup([]);
-      }
-
-      effectInfo.forEach(({ functor, args }) => {
-        if (functor === 'newBlock' || functor === 'score') {
-          setScore(s => s + args[0]);
-        }
-      });
-
-      prevGrid = effectGrid;
-      await delay(300);
+      setNotifications(prev => [...prev, ...newNotifs]);
+      setTimeout(() => {
+        setNotifications(prev => prev.slice(newNotifs.length));
+      }, 5000);
     }
-    setWaiting(false);
+
+    setGrid(effectGrid);
+
+    // Animación de fusión (sin cambios)
+    let fusionIdx: number | null = null;
+    if (prevGrid) {
+      for (let j = 0; j < effectGrid.length; j++) {
+        const prev = prevGrid[j], curr = effectGrid[j];
+        if (prev !== '-' && curr !== '-' && Number(curr) > Number(prev)) {
+          fusionIdx = j;
+          break;
+        }
+      }
+    }
+
+    if (fusionIdx !== null && prevGrid && numOfColumns) {
+      const targetVal = prevGrid[fusionIdx];
+      const queue = [fusionIdx];
+      const visited = new Set<number>([fusionIdx]);
+      const cluster: number[] = [];
+
+      while (queue.length) {
+        const idx = queue.shift()!;
+        cluster.push(idx);
+        const neighbors = [
+          idx - numOfColumns, idx + numOfColumns,
+          (idx % numOfColumns !== 0) ? idx - 1 : -1,
+          ((idx + 1) % numOfColumns !== 0) ? idx + 1 : -1
+        ];
+        for (const n of neighbors) {
+          if (n >= 0 && n < prevGrid.length && !visited.has(n) && prevGrid[n] === targetVal) {
+            visited.add(n);
+            queue.push(n);
+          }
+        }
+      }
+
+      setFusionGroup(cluster);
+      await delay(500);
+      setFusionGroup([]);
+    }
+
+    // Procesar efectos individuales
+    effectInfo.forEach(({ functor, args }) => {
+      if (functor === 'newBlock' || functor === 'score') {
+        setScore(s => s + args[0]);
+      } else if (functor === 'unlockShooter' || functor === 'eliminatedBlock') {
+        const val = args[0];
+        setNotifications(prev => [...prev, `🆕 Block added to shooter: ${val}`]);
+        setTimeout(() => {
+          setNotifications(prev => prev.slice(1));
+        }, 5000);
+      }
+    });
+
+    prevGrid = effectGrid;
+    await delay(300);
   }
+
+  setWaiting(false);
+}
+
 
   if (grid === null) return null;
 
   return (
     <div className="game">
+      {notifications.length > 0 && (
+        <div className="notification-container">
+          {notifications.map((msg, i) => (
+            <div key={i} className="notification">{msg}</div>
+          ))}
+        </div>
+      )}
+
       <div className="header">
         <div className="score">{score}</div>
       </div>
+
       <Board
         grid={grid}
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
         fusionGroup={fusionGroup}
-       // sideBlocks={sideBlocks}
       />
+
       <div className="footer">
         <div className="blockShoot">
           {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
-          
-        {nextBlock !== null &&
-          <div className={`next-block ${animateNextBlock && isNextBlockRevealed ? 'slide-to-left' : ''}`}>
-            <div className="next-block-wrapper" onClick={revealNextBlock}>
-              {isNextBlockRevealed ? (
-                <>
-                  <Block value={nextBlock} position={[0, 1]} skipLaunch />
-                  <div className="progress-bar">
-                    <div
-                      className="progress-bar-fill"
-                      style={{ width: `${revealProgress * 100}%` }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="overlay">
-                  Bloque siguiente
-                </div>
-              )}
-            </div>
-          </div>}        
+          {nextBlock !== null &&
+            <div className={`next-block ${animateNextBlock && isNextBlockRevealed ? 'slide-to-left' : ''}`}>
+              <div className="next-block-wrapper" onClick={revealNextBlock}>
+                {isNextBlockRevealed ? (
+                  <>
+                    <Block value={nextBlock} position={[0, 1]} skipLaunch />
+                    <div className="progress-bar">
+                      <div
+                        className="progress-bar-fill"
+                        style={{ width: `${revealProgress * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="overlay">Bloque siguiente</div>
+                )}
+              </div>
+            </div>}
         </div>
       </div>
     </div>
