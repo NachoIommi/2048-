@@ -358,7 +358,8 @@ cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :-
         deleteForbiddenBlocks(Grid2, Grid3),            % Elimina los prohibidos de Grid2
         compact_grid_up(Grid3, NCols, CompactedGrid),   % Compacta Grid3
 
-        CurrentStepIndividualEffects = [newBlock(Val2), score(Val2)],
+        length(Cluster, RealClusterSize),
+        CurrentStepIndividualEffects = [newBlock(Val2), newBlock(Val2, RealClusterSize), score(Val2)],
 
         % Continuamos la cascada con la grilla ya compactada y limpiada
         cascade_fuse_(CompactedGrid, NCols, NewIdxOrig, [effect(CompactedGrid, CurrentStepIndividualEffects)|AccEffects], FinalAccEffects)
@@ -597,57 +598,43 @@ max_shootable_block(Grid, Max) :-
 /*--------------------------------------------------------------------
   7. Booster Hint Jugada
 --------------------------------------------------------------------*/
+predict_combo(Block, Col, Grid, NCols, ComboSize) :-
+    % Paso 1: Limpiar y compactar la grilla antes de simular
+    deleteForbiddenBlocks(Grid, TempCleanGrid),
+    compact_grid_up(TempCleanGrid, NCols, CleanGrid),
 
-/*
-    predict_combo(+Block,+Col,+Grid,+NCols,-ComboSize)  <-- CAMBIO AQUÍ: Ahora es /5
-    Verifica si colocar un Block en una Columna específica resultará en un combo (fusión encadenada).
-    Retorna el tamaño del segundo clúster si se forma un combo.
+    % Paso 2: Simular la jugada como en shoot/6, pero sin modificar el estado global
+    drop_block(Block, Col, CleanGrid, NCols, G1, RowPlaced),
+    index(RowPlaced, Col, NCols, IdxPlaced),
+    get_cell(IdxPlaced, G1, Val0),
 
-    Block: Valor del bloque a colocar.
-    Col: Columna donde se coloca el bloque.
-    Grid: Estado actual de la cuadrícula.
-    NCols: Número de columnas de la cuadrícula.
-    ComboSize: (Salida) El tamaño del segundo clúster formado en el combo, o 0 si no hay combo.
-*/
-predict_combo(Block, Col, Grid, NCols, ComboSize) :-  % <-- Añadido ComboSize
-    % 1. Simular la colocación del bloque para obtener la cuadrícula intermedia (G1)
-    % y el índice donde aterrizó (IdxPlaced0).
-    drop_block(Block, Col, Grid, NCols, G1, RowPlaced),
-    index(RowPlaced, Col, NCols, IdxPlaced0),
-    get_cell(IdxPlaced0, G1, Val0), % Val0 es el valor del bloque recién colocado
+    % Paso 3: Ejecutar la cascada de fusiones, acumulando grillas intermedias
+    cascade_fuse(IdxPlaced, G1, NCols, Val0, Effects),
 
-    % 2. Encontrar clústeres iniciales en G1. Nos interesan los clústeres que incluyan IdxPlaced0.
-    dims(G1, NCols, NRows),
-    empty_cell(Empty),
-    findall((I, Cluster),
-        (
-            nth1(I, G1, Val), Val \= Empty,
-            cluster_same(I, G1, NCols, NRows, Val, Cluster),
-            length(Cluster, Size), Size >= 2,
-            % Asegurarse de que el clúster incluya el índice del bloque recién colocado
-            member(IdxPlaced0, Cluster)
-        ),
-        RelevantClusters
-    ),
-    (   % Si hay clústeres relevantes...
-        RelevantClusters \= []
-    ->  % Tomar el primer clúster relevante
-        member((MergeOriginIdx, InitialCluster), RelevantClusters),
-        
-        % 3. Simular la primera fusión: vaciar celdas y colocar el nuevo bloque fusionado.
-        % Obtenemos ValMerged1 y GridAfterFirstMerge.
-        length(InitialCluster, Size1),
-        merged_value(Val0, Size1, ValMerged1), % Calcular el valor de la primera fusión
-        empty_cells(InitialCluster, G1, GridCleared), % Vaciar las celdas del primer clúster
-        nth1_update(MergeOriginIdx, GridCleared, ValMerged1, GridAfterFirstMerge), % Colocar el nuevo bloque
-
-        % 4. Verificar si hay una *segunda* fusión (combo) inmediatamente alrededor de ValMerged1
-        % en GridAfterFirstMerge. Este nuevo clúster debe incluir el bloque recién fusionado (MergeOriginIdx).
-        % El valor a buscar es ValMerged1.
-        cluster_same(MergeOriginIdx, GridAfterFirstMerge, NCols, NRows, ValMerged1, SecondCluster),
-        length(SecondCluster, Size2),
-        Size2 >= 2, % Debe encontrarse un segundo clúster de fusión
-        InitialCluster \= SecondCluster % Asegurarse de que sea un *nuevo* clúster
-    ->  ComboSize = Size2 % Si todo lo anterior es verdad, unificar ComboSize con el tamaño del segundo clúster
-    ;   ComboSize = 0 % Si no se cumplen las condiciones para un combo, ComboSize es 0
+    % Paso 4: Extraer todos los clústeres de cada fusión (excepto la primera) y quedarnos con el mayor
+    extract_combo_clusters(Effects, ClusterSizes),
+    (   ClusterSizes = [] -> ComboSize = 0
+    ;   max_list(ClusterSizes, ComboSize)
     ).
+
+extract_combo_clusters(Effects, ClusterSizes) :-
+    Effects = [_|Rest],
+    findall(Size,
+        (
+            member(effect(_, Efxs), Rest),
+            member(newBlock(_, Size), Efxs)
+        ),
+        ClusterSizes
+    ).
+
+
+unmerge_value(Val, Size) :-
+    Val > 0,
+    log2(Val, LogVal),
+    floor(LogVal) =:= LogVal,  % Verifica que Val es potencia de 2
+    Base = 2,
+    between(1, 20, Size),
+    V is Val // (Base ** (Size - 1)),
+    integer(V),
+    Val =:= V * Base ** (Size - 1).
+
