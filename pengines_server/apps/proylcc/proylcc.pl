@@ -302,15 +302,15 @@ find_block_in_column(Grid,NCols,Col,Val,Index) :-
     Effects: Lista de efectos resultantes de las fusiones
     ForbiddenBlocksOut: Lista final de bloques prohibidos para lanzar. <-- NUEVO
 */
-shoot(Block,Col,Grid,NCols,Effects, ForbiddenBlocksOut) :- % <-- Aquí
-    drop_block(Block,Col,Grid,NCols,G1,RowPlaced),
+shoot(Block,Col,Grid,NCols,Effects, ForbiddenBlocksOut) :-
+    deleteForbiddenBlocks(Grid, TempCleanGrid),        % <-- Obtiene la grilla con los prohibidos eliminados
+    compact_grid_up(TempCleanGrid, NCols, CleanGrid),  % <-- ¡Aplica compact_grid_up aquí!
+    drop_block(Block,Col,CleanGrid,NCols,G1,RowPlaced), % <-- ¡USA CleanGrid (ya compactada) AQUÍ!
     index(RowPlaced,Col,NCols,IdxPlaced0),
     get_cell(IdxPlaced0,G1,Val0),
     cascade_fuse(IdxPlaced0, G1, NCols, Val0, GridsAndEffectsAsc),
     grids_to_effects(GridsAndEffectsAsc, Effects),
-    % Obtener la lista final de bloques prohibidos después de todas las posibles actualizaciones
-    forbidden_blocks_accumulated(ForbiddenBlocksOut). 
-
+    forbidden_blocks_accumulated(ForbiddenBlocksOut).
 /*
     cascade_fuse(+IdxOrig,+Grid,+NCols,+Val,+GridsAsc)
     Realiza cascadas de fusiones a partir del bloque colocado en la grilla.
@@ -349,15 +349,29 @@ cascade_fuse_(Grid, NCols, IdxOrig, AccEffects, FinalAccEffects) :-
         ),
         nth1(I, Grid, Val),
         merge_cluster(Cluster, I, Grid, Val, NCols, Grid2, Val2, NewIdxOrig),
+        
+        % Primero, actualizamos los bloques prohibidos
         update_forbidden_blocks_accumulated(Val2),
 
-        % ¡AQUÍ ES DONDE SE AGREGA EL EFECTO newBlock(Val2) y score(Val2)!
-        % Se generó un nuevo bloque con valor Val2 a partir de una fusión.
-        CurrentStepIndividualEffects = [newBlock(Val2), score(Val2)], % <-- ¡ESTE ES EL CAMBIO CLAVE!
+        % Luego, eliminamos los bloques prohibidos de la *grilla actual* (Grid2)
+        % y compactamos inmediatamente.
+        deleteForbiddenBlocks(Grid2, Grid3),            % Elimina los prohibidos de Grid2
+        compact_grid_up(Grid3, NCols, CompactedGrid),   % Compacta Grid3
 
-        % Prepend the new effect(Grid2, CurrentStepIndividualEffects) to the accumulator
-        cascade_fuse_(Grid2, NCols, NewIdxOrig, [effect(Grid2, CurrentStepIndividualEffects)|AccEffects], FinalAccEffects)
+        CurrentStepIndividualEffects = [newBlock(Val2), score(Val2)],
+
+        % Continuamos la cascada con la grilla ya compactada y limpiada
+        cascade_fuse_(CompactedGrid, NCols, NewIdxOrig, [effect(CompactedGrid, CurrentStepIndividualEffects)|AccEffects], FinalAccEffects)
     ).
+
+    deleteForbiddenBlocks(GridIn, GridOut) :-
+        forbidden_blocks_accumulated(Forbidden),
+        maplist(replaceForbidden(Forbidden), GridIn, GridOut).
+
+    replaceForbidden(Forbidden, X, '-') :-
+        number(X),
+        member(X, Forbidden), !.
+        replaceForbidden(_, X, X).
 
 /*--------------------------------------------------------------------
   5. Convertir grillas → effects
