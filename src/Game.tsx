@@ -31,7 +31,7 @@ interface ScoreTerm extends PrologTerm {
 interface Notification {
   id: number;
   msg: string;
-  type: 'central' | 'combo' | 'good' | 'excellent' | 'eliminated'; // Añadimos el tipo para facilitar el filtrado
+  type: 'central' | 'combo' | 'good' | 'excellent' | 'eliminated';
 }
 
 function Game() {
@@ -43,6 +43,8 @@ function Game() {
   const [nextBlock, setNextBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [fusionGroup, setFusionGroup] = useState<number[]>([]);
+  // NEW: State for fusionReceptorIndex
+  const [fusionReceptorIndex, setFusionReceptorIndex] = useState<number | null>(null);
   const [animateNextBlock, setAnimateNextBlock] = useState(false);
   const [isNextBlockRevealed, setIsNextBlockRevealed] = useState(false);
   const [revealProgress, setRevealProgress] = useState(0);
@@ -53,32 +55,30 @@ function Game() {
   const [notificationCounter, setNotificationCounter] = useState(0);
   const [gameOver, setGameOver] = useState(false);
 
-
   const [hoveredLane, setHoveredLane] = useState<number | null>(null);
   const [predictedCombo, setPredictedCombo] = useState<number | null>(null);
 
-  
-
-  // Modificación en pushNotification para incluir el tipo 'eliminated'
   function pushNotification(msg: string, customType?: Notification['type']) {
     setNotificationCounter(id => {
       const newId = id + 1;
-      let type: Notification['type'] = 'central'; // Por defecto es central
+      let type: Notification['type'] = customType || 'central'; // Use customType if provided
 
-      if (msg.includes('Combo')) {
-        type = 'combo';
-      } else if (msg.includes('Good!')) {
-        type = 'good';
-      } else if (msg.includes('Excellent!')) {
-        type = 'excellent';
-      } else if (msg.includes('Eliminado')) { 
-        type = 'eliminated';
+      if (!customType) { // If no customType, determine based on message
+        if (msg.includes('Combo')) {
+          type = 'combo';
+        } else if (msg.includes('Good!')) {
+          type = 'good';
+        } else if (msg.includes('Excellent!')) {
+          type = 'excellent';
+        } else if (msg.includes('Eliminado')) {
+          type = 'eliminated';
+        }
       }
 
       setNotifications(prev => [...prev, { id: newId, msg, type }]);
       setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== newId));
-      }, 5000); // 5 segundos para que coincida con la animación
+      }, 5000);
       return newId;
     });
   }
@@ -98,8 +98,8 @@ function Game() {
     setNumOfColumns(res['NumOfColumns']);
     setHighestBlockReached(0);
     setMaxShooteable(0);
-    setNotifications([]); // Limpiar notificaciones al iniciar
-    setNotificationCounter(0); // Reiniciar contador
+    setNotifications([]);
+    setNotificationCounter(0);
     setGameOver(false);
   }
 
@@ -112,62 +112,52 @@ function Game() {
 
     const response = await pengine.query(queryS);
     if (response) {
-      animateEffect(response['Effects']);
+      await animateEffect(response['Effects']); // Await the animation to complete
+
       setAnimateNextBlock(true);
       await delay(300);
       setShootBlock(nextBlock);
       setNextBlock(response['Block']);
       setAnimateNextBlock(false);
 
-      // 1. Obtener los bloques prohibidos ANTES de este turno (si tienes un estado que los guarda)
-        // Para simplificar, vamos a comparar con el estado actual `forbiddenBlocks`
-        const oldForbiddenBlocks = forbiddenBlocks;
-        const newForbiddenBlocks = response['ForbiddenBlocksOut'];
+      const oldForbiddenBlocks = forbiddenBlocks;
+      const newForbiddenBlocks = response['ForbiddenBlocksOut'];
+      setForbiddenBlocks(newForbiddenBlocks);
 
-        // 2. Actualizar el estado con los nuevos bloques prohibidos
-        setForbiddenBlocks(newForbiddenBlocks);
-
-        // 3. Detectar qué bloques son nuevos en la lista de prohibidos
-        const newlyForbidden = newForbiddenBlocks.filter(
-            (block: number) => !oldForbiddenBlocks.includes(block)
-        );
-
-        // 4. Disparar notificaciones por cada bloque recién prohibido
-        newlyForbidden.forEach((block: number) => {
-            pushNotification(`🚫 Bloque Eliminado: ${block}!`, 'eliminated'); // Usa tu tipo 'eliminated'
-        });
+      const newlyForbidden = newForbiddenBlocks.filter((block: number) => !oldForbiddenBlocks.includes(block));
+      newlyForbidden.forEach((block: number) => {
+        pushNotification(`🚫 Bloque Eliminado: ${block}!`, 'eliminated');
+      });
 
     } else {
       setWaiting(false);
     }
   }
 
-
   async function handleLaneHover(lane: number | null) {
     setHoveredLane(lane);
     setPredictedCombo(null); // Limpiar el combo predicho al cambiar de carril o al salir
 
     if (lane !== null && grid !== null && shootBlock !== null && numOfColumns !== null && pengine) {
-        const gridS = JSON.stringify(grid).replace(/"/g, '');
-        const queryS = `predict_combo(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, ComboSize)`;
+      const gridS = JSON.stringify(grid).replace(/"/g, '');
+      const queryS = `predict_combo(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, ComboSize)`;
 
-        try {
-            const response = await pengine.query(queryS);
-            if (response && response['ComboSize'] !== undefined) {
-                const comboSize = response['ComboSize'];
-                if (comboSize > 1) { // Asumimos que un combo es de 2 o más bloques
-                    setPredictedCombo(comboSize);
-                } else {
-                    setPredictedCombo(null); // No hay combo significativo
-                }
-            }
-        } catch (error) {
-            console.error("Error predicting combo:", error);
-            setPredictedCombo(null);
+      try {
+        const response = await pengine.query(queryS);
+        if (response && response['ComboSize'] !== undefined) {
+          const comboSize = response['ComboSize'];
+          if (comboSize > 1) { // Asumimos que un combo es de 2 o más bloques
+            setPredictedCombo(comboSize);
+          } else {
+            setPredictedCombo(null); // No hay combo significativo
+          }
         }
+      } catch (error) {
+        console.error("Error predicting combo:", error);
+        setPredictedCombo(null);
+      }
     }
-}
-
+  }
 
   async function animateEffect(effects: EffectTerm[]) {
     let prevGrid = grid;
@@ -183,7 +173,6 @@ function Game() {
 
       setGrid(effectGrid);
 
-      // Detectar fusión
       let fusionIdx: number | null = null;
       if (prevGrid) {
         for (let j = 0; j < effectGrid.length; j++) {
@@ -218,14 +207,15 @@ function Game() {
         }
 
         setFusionGroup(cluster);
+        setFusionReceptorIndex(fusionIdx); // Set the receptor index
         await delay(500);
         setFusionGroup([]);
+        setFusionReceptorIndex(null); // Clear the receptor index after animation
 
-        // Ahora pushNotification usará el nuevo tipo
         if (cluster.length > 2) {
-          pushNotification(`🔥 Combo x ${cluster.length}`);
-          if (cluster.length === 3) pushNotification('👍 Good!');
-          else if (cluster.length === 4) pushNotification('✨ Excellent!');
+          pushNotification(`🔥 Combo x ${cluster.length}`, 'combo');
+          if (cluster.length === 3) pushNotification('👍 Good!', 'good');
+          else if (cluster.length === 4) pushNotification('✨ Excellent!', 'excellent');
         }
       }
 
@@ -233,18 +223,17 @@ function Game() {
         const val = args[0];
 
         if (functor === 'newBlock') {
-          setScore(s => s + val); // Añadir al score por newBlock
+          setScore(s => s + val);
           if (val > highestBlockReached) {
             setHighestBlockReached(val);
-            if(val >= 512){
+            if (val >= 512) {
               pushNotification(`🎉 Nuevo Bloque Maximo Alcanzado: ${val}`);
             }
-            
           }
         }
 
         if (functor === 'score') {
-          setScore(s => s + val); // Añadir al score por score (puntos ganados)
+          setScore(s => s + val);
         }
       });
 
@@ -252,14 +241,13 @@ function Game() {
       await delay(300);
     }
 
-    // Consultar nuevo maxShooteable
     const finalGridS = JSON.stringify(prevGrid).replace(/"/g, '');
     const res = await pengine.query(`max_shootable_block(${finalGridS}, Max)`);
     if (res) {
       const newMax = res['Max'];
       if (newMax > maxShooteable) {
         setMaxShooteable(newMax);
-        pushNotification(`🚀 New Block Added: ${newMax}!`); // Tipo 'central' por defecto
+        pushNotification(`🚀 New Block Added: ${newMax}!`);
       }
     }
 
@@ -289,10 +277,9 @@ function Game() {
 
   if (grid === null) return null;
 
-  // Filtrar notificaciones por tipo para el renderizado
   const centralNotifications = notifications.filter(n => n.type === 'central');
   const leftNotifications = notifications.filter(n => n.type === 'good' || n.type === 'excellent');
-  const eliminatedNotifications = notifications.filter(n => n.type === 'eliminated'); 
+  const eliminatedNotifications = notifications.filter(n => n.type === 'eliminated');
   const rightNotifications = notifications.filter(n => n.type === 'combo');
 
   return (
@@ -310,9 +297,7 @@ function Game() {
       {centralNotifications.length > 0 && (
         <div className="notification-container">
           {centralNotifications.map(({ id, msg }) => (
-            <div key={id} className="notification-bubble">
-              {msg}
-            </div>
+            <div key={id} className="notification-bubble">{msg}</div>
           ))}
         </div>
       )}
@@ -321,9 +306,7 @@ function Game() {
       {leftNotifications.length > 0 && (
         <div className="left-notifications-wrapper">
           {leftNotifications.map(({ id, msg, type }) => (
-            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
-              {msg}
-            </div>
+            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>{msg}</div>
           ))}
         </div>
       )}
@@ -332,21 +315,19 @@ function Game() {
       {rightNotifications.length > 0 && (
         <div className="right-notifications-wrapper">
           {rightNotifications.map(({ id, msg, type }) => (
-            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
-              {msg}
-            </div>
+            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>{msg}</div>
           ))}
         </div>
       )}
 
       {/* Nuevo Contenedor para Notificaciones de Bloques Eliminados (Izquierda Abajo) */}
       {eliminatedNotifications.length > 0 && (
-        <div className="left-down-notifications-wrapper"> {/* Nueva clase para el contenedor */}
+        <div className="left-down-notifications-wrapper">
           {eliminatedNotifications.map(({ id, msg, type }) => (
-            <div 
+            <div
               key={id}
-              className="notification-bubble" // Mantén la clase base
-               style={type === 'eliminated' ? { backgroundColor: '#e74c3c', border: '2px solid #c0392b' } : {}}
+              className="notification-bubble"
+              style={type === 'eliminated' ? { backgroundColor: '#e74c3c', border: '2px solid #c0392b' } : {}}
             >
               {msg}
             </div>
@@ -364,12 +345,12 @@ function Game() {
         )}
       </div>
 
-
       <Board
         grid={grid}
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
         fusionGroup={fusionGroup}
+        fusionReceptorIndex={fusionReceptorIndex ?? undefined}
         hoveredLane={hoveredLane}
         setHoveredLane={handleLaneHover}
       />
@@ -377,7 +358,7 @@ function Game() {
       <div className="footer">
         <div className="blockShoot">
           {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
-          {nextBlock !== null &&
+          {nextBlock !== null && (
             <div className={`next-block ${animateNextBlock && isNextBlockRevealed ? 'slide-to-left' : ''}`}>
               <div className="next-block-wrapper" onClick={revealNextBlock}>
                 {isNextBlockRevealed ? (
@@ -391,7 +372,8 @@ function Game() {
                   <div className="overlay">Bloque siguiente</div>
                 )}
               </div>
-            </div>}
+            </div>
+          )}
         </div>
       </div>
     </div>
