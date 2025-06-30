@@ -151,64 +151,76 @@ body {
   to   { opacity: 0.7; transform: translateX(-50%) scale(1); }
 }
 
-.notification-container {
-  position: absolute;
-  top: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
+/* --- ESTILOS DE NOTIFICACIÓN REVISADOS --- */
 
-.notification {
-  background: linear-gradient(135deg, #0886e7, #0066ff);
-  color: #222;
+/* Estilo base para todas las "burbujas" de notificación */
+.notification-bubble {
   padding: 1rem 2rem;
   border-radius: 2rem;
   font-size: 1.25rem;
   font-weight: bold;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   animation: bounceFade 5s ease-in-out forwards;
-  white-space: nowrap;
+  white-space: nowrap; /* Evita que el texto se rompa en varias líneas */
+  color: #fff; /* Color de texto por defecto para todas, se puede sobreescribir */
 }
 
-/* Avisos de combo, mismo estilo base pero otro color */
-/* Estilo específico para avisos de combo */
-.combo-notification {
-  position: fixed;           /* fijo en pantalla */
-  top: 2rem;              /* distancia desde abajo */
-  right: auto;               /* distancia desde la derecha */
-  left: 20rem;                /* anulamos left */
-  transform: none;           /* quitamos el translateX(-50%) */
-  z-index: 150;              /* para que quede por encima */
-  background: linear-gradient(135deg, #e1ee2a, #0c5216);
-  color: #fff;
-}
-/* Aviso 'Good!' */
-.good-notification {
-  position: fixed;
-  top: 2rem;          /* un poco más arriba para que no se solapen */
-  right: 20rem;
-  left: auto;
-  transform: none;
-  z-index: 150;
-  background: linear-gradient(135deg, #28a745, #218838); /* verde */
-  color: #fff;
+/* 1. Contenedor para Notificaciones Centrales */
+.notification-container {
+  position: fixed; /* Posicionado con respecto al viewport */
+  top: 2rem;
+  left: 50%;
+  transform: translateX(-50%); /* Centra el contenedor horizontalmente */
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Centra las burbujas dentro del contenedor */
+  gap: 1rem; /* Espacio entre burbujas */
 }
 
-/* Aviso 'Excellent!' */
-.excellent-notification {
+/* Color específico para notificaciones centrales (las que no son Combo, Good, Excellent) */
+.notification-container .notification-bubble {
+  background: linear-gradient(135deg, #0886e7, #0066ff); /* Azul */
+  color: #222; /* Color de texto para el centro, si es diferente */
+}
+
+/* 2. Contenedor para Notificaciones Izquierdas (Good, Excellent) */
+.left-notifications-wrapper {
   position: fixed;
-  top: 7rem;         /* más arriba aún */
-  right: auto;
-  left: 20rem;
-  transform: none;
-  z-index: 152;
-  background: linear-gradient(135deg, #ffd700, #ffb400); /* dorado */
-  color: #000;
+  top: 2rem; /* Alineado verticalmente con el centro y la derecha */
+  left: 10rem; /* Distancia del borde izquierdo (ajusta a tu gusto) */
+  z-index: 150; /* Z-index más alto que el central */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Alinea las burbujas a la izquierda dentro del wrapper */
+  gap: 1rem; /* Espacio entre burbujas */
+}
+
+/* Colores específicos para notificaciones Good y Excellent */
+.good-notification-bubble {
+  background: linear-gradient(135deg, #28a745, #218838); /* Verde */
+}
+
+.excellent-notification-bubble {
+  background: linear-gradient(135deg, #ffd700, #ffb400); /* Dorado */
+  color: #000; /* Color de texto negro para el dorado */
+}
+
+/* 3. Contenedor para Notificaciones Derechas (Combo) */
+.right-notifications-wrapper {
+  position: fixed;
+  top: 2rem; /* Alineado verticalmente con el centro y la izquierda */
+  right: 10rem; /* Distancia del borde derecho (ajusta a tu gusto) */
+  z-index: 150; /* Z-index más alto que el central */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* Alinea las burbujas a la derecha dentro del wrapper */
+  gap: 1rem; /* Espacio entre burbujas */
+}
+
+/* Color específico para notificación Combo */
+.combo-notification-bubble {
+  background: linear-gradient(135deg, #e1ee2a, #0c5216); /* Amarillo/Verde */
 }
 
 @keyframes bounceFade {
@@ -229,11 +241,13 @@ body {
   100% {
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
+    /* NO usar display: none aquí si quieres que JS lo elimine del DOM */
   }
 }
+
 /* ========== Game Over Overlay ========== */
 
-  .gameover-overlay {
+.gameover-overlay {
   position: absolute;
   top: 0;
   left: 0;

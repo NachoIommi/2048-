@@ -31,6 +31,7 @@ interface ScoreTerm extends PrologTerm {
 interface Notification {
   id: number;
   msg: string;
+  type: 'central' | 'combo' | 'good' | 'excellent'; // Añadimos el tipo para facilitar el filtrado
 }
 
 function Game() {
@@ -51,13 +52,24 @@ function Game() {
   const [notificationCounter, setNotificationCounter] = useState(0);
   const [gameOver, setGameOver] = useState(false);
 
+  // Modificación en pushNotification para incluir el tipo
   function pushNotification(msg: string) {
     setNotificationCounter(id => {
       const newId = id + 1;
-      setNotifications(prev => [...prev, { id: newId, msg }]);
+      let type: Notification['type'] = 'central'; // Por defecto es central
+
+      if (msg.includes('Combo')) {
+        type = 'combo';
+      } else if (msg.includes('Good!')) {
+        type = 'good';
+      } else if (msg.includes('Excellent!')) {
+        type = 'excellent';
+      }
+
+      setNotifications(prev => [...prev, { id: newId, msg, type }]);
       setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== newId));
-      }, 5000);
+      }, 5000); // 5 segundos para que coincida con la animación
       return newId;
     });
   }
@@ -77,7 +89,8 @@ function Game() {
     setNumOfColumns(res['NumOfColumns']);
     setHighestBlockReached(0);
     setMaxShooteable(0);
-    setNotifications([]);
+    setNotifications([]); // Limpiar notificaciones al iniciar
+    setNotificationCounter(0); // Reiniciar contador
     setGameOver(false);
   }
 
@@ -153,8 +166,11 @@ function Game() {
         await delay(500);
         setFusionGroup([]);
 
+        // Ahora pushNotification usará el nuevo tipo
         if (cluster.length > 2) {
           pushNotification(`🔥 Combo x ${cluster.length}`);
+          // Nota: Puedes ajustar la lógica aquí para evitar que "Good!" y "Excellent!" aparezcan con el combo si solo quieres uno por fusión.
+          // O dejarlo para que aparezcan múltiples si el combo es muy grande.
           if (cluster.length === 3) pushNotification('👍 Good!');
           else if (cluster.length === 4) pushNotification('✨ Excellent!');
         }
@@ -164,7 +180,7 @@ function Game() {
         const val = args[0];
 
         if (functor === 'newBlock') {
-          setScore(s => s + val);
+          setScore(s => s + val); // Añadir al score por newBlock
           if (val > highestBlockReached) {
             setHighestBlockReached(val);
             pushNotification(`🎉 Nuevo Bloque Maximo Alcanzado: ${val}`);
@@ -172,7 +188,7 @@ function Game() {
         }
 
         if (functor === 'score') {
-          setScore(s => s + val);
+          setScore(s => s + val); // Añadir al score por score (puntos ganados)
         }
 
         if (functor === 'eliminatedBlock') {
@@ -185,13 +201,17 @@ function Game() {
     }
 
     // Consultar nuevo maxShooteable
-    const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const res = await pengine.query(`max_shootable_block(${gridS}, Max)`);
+    // Asegurarse de que `grid` sea la cuadrícula final después de todos los efectos
+    // ya que `setGrid` en el loop `for` es asíncrono en React, el `grid` aquí
+    // puede no ser el más actualizado si no se espera. Para ser robusto, usa `prevGrid` que
+    // es la última cuadrícula del efecto.
+    const finalGridS = JSON.stringify(prevGrid).replace(/"/g, '');
+    const res = await pengine.query(`max_shootable_block(${finalGridS}, Max)`);
     if (res) {
       const newMax = res['Max'];
       if (newMax > maxShooteable) {
         setMaxShooteable(newMax);
-        pushNotification(`🚀 New Block Added: ${newMax}!`);
+        pushNotification(`🚀 New Block Added: ${newMax}!`); // Tipo 'central' por defecto
       }
     }
 
@@ -221,6 +241,11 @@ function Game() {
 
   if (grid === null) return null;
 
+  // Filtrar notificaciones por tipo para el renderizado
+  const centralNotifications = notifications.filter(n => n.type === 'central');
+  const leftNotifications = notifications.filter(n => n.type === 'good' || n.type === 'excellent');
+  const rightNotifications = notifications.filter(n => n.type === 'combo');
+
   return (
     <div className="game">
       {gameOver && (
@@ -232,14 +257,33 @@ function Game() {
         </div>
       )}
 
-      {notifications.length > 0 && (
+      {/* Contenedor para Notificaciones Centrales */}
+      {centralNotifications.length > 0 && (
         <div className="notification-container">
-          {notifications.map(({ id, msg }) => (
-            <div key={id} className={`notification ${
-              msg.includes('Combo') ? 'combo-notification' :
-              msg.includes('Good!') ? 'good-notification' :
-              msg.includes('Excellent!') ? 'excellent-notification' : ''
-            }`}>
+          {centralNotifications.map(({ id, msg }) => (
+            <div key={id} className="notification-bubble">
+              {msg}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Contenedor para Notificaciones Izquierdas */}
+      {leftNotifications.length > 0 && (
+        <div className="left-notifications-wrapper">
+          {leftNotifications.map(({ id, msg, type }) => (
+            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
+              {msg}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Contenedor para Notificaciones Derechas */}
+      {rightNotifications.length > 0 && (
+        <div className="right-notifications-wrapper">
+          {rightNotifications.map(({ id, msg, type }) => (
+            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
               {msg}
             </div>
           ))}
