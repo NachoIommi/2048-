@@ -517,17 +517,36 @@ log2(X, L) :- L is log(X) / log(2).
 */
 update_forbidden_blocks_accumulated(MergedVal) :-
     forbidden_blocks_accumulated(CurrentForbidden),
-    (   MergedVal >= 1024
+    (   MergedVal =:= 1024
+    ->  Block = 2,
+        add_block_to_forbidden(Block, CurrentForbidden)
+    ;   MergedVal =:= 2048
+    ->  Block = 4,
+        add_block_to_forbidden(Block, CurrentForbidden)
+    ;   MergedVal =:= 4096
+    ->  Block = 8,
+        add_block_to_forbidden(Block, CurrentForbidden)
+    ;   MergedVal >= 16384
     ->  log2(MergedVal, ExpF),
-        Exponent is round(ExpF),       % Obtener el exponente de la potencia
-        MaxIndex is Exponent - 9,
+        Exponent is round(ExpF),
+        MaxIndex is Exponent - 10,
         findall(P, (between(1, MaxIndex, I), P is 2^I), BlocksToProhibit),
         append(BlocksToProhibit, CurrentForbidden, TempNewForbidden),
         list_to_set(TempNewForbidden, UniqueForbidden),
         retractall(forbidden_blocks_accumulated(_)),
         assertz(forbidden_blocks_accumulated(UniqueForbidden))
-    ;   true  % Si MergedVal < 1024, no hacer nada
+    ;   true  % Si MergedVal < 1024 o es 8192, no hacer nada
     ).
+
+add_block_to_forbidden(Block, CurrentForbidden) :-
+    ( member(Block, CurrentForbidden) ->
+        true  % Ya está, no hacer nada
+    ;   append([Block], CurrentForbidden, Temp),
+        list_to_set(Temp, Unique),
+        retractall(forbidden_blocks_accumulated(_)),
+        assertz(forbidden_blocks_accumulated(Unique))
+    ).
+
 
 rango_valido(MaxGrilla, Min, Max) :-
     ( MaxGrilla < 16     -> Min = 2,  Max = 4
