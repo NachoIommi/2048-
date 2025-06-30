@@ -1,6 +1,6 @@
 :- module(proylcc,
     [ randomBlock/2,
-      shoot/5,
+      shoot/6,
       score/1 
     ]).
 
@@ -293,21 +293,23 @@ find_block_in_column(Grid,NCols,Col,Val,Index) :-
   4. Cascada de fusiones y efectos
 --------------------------------------------------------------------*/
 /*
-    shoot(+Block,+Col,+Grid,+NCols,-Effects)
+    shoot(+Block,+Col,+Grid,+NCols,-Effects, -ForbiddenBlocksOut) % <-- Nuevo argumento
     Coloca un bloque en la columna Col de la grilla Grid y realiza cascadas de fusiones.
     Block: Valor del bloque a colocar
     Col: Numero de la columna donde se coloca el bloque
     Grid: Lista que representa la grilla
     NCols: Numero de columnas de la grilla
     Effects: Lista de efectos resultantes de las fusiones
+    ForbiddenBlocksOut: Lista final de bloques prohibidos para lanzar. <-- NUEVO
 */
-shoot(Block,Col,Grid,NCols,Effects) :-
+shoot(Block,Col,Grid,NCols,Effects, ForbiddenBlocksOut) :- % <-- Aquí
     drop_block(Block,Col,Grid,NCols,G1,RowPlaced),
     index(RowPlaced,Col,NCols,IdxPlaced0),
     get_cell(IdxPlaced0,G1,Val0),
-    % No InitialEffects con newBlock aquí.
     cascade_fuse(IdxPlaced0, G1, NCols, Val0, GridsAndEffectsAsc),
-    grids_to_effects(GridsAndEffectsAsc, Effects). % grids_to_effects seguirá procesando la lista.
+    grids_to_effects(GridsAndEffectsAsc, Effects),
+    % Obtener la lista final de bloques prohibidos después de todas las posibles actualizaciones
+    forbidden_blocks_accumulated(ForbiddenBlocksOut). 
 
 /*
     cascade_fuse(+IdxOrig,+Grid,+NCols,+Val,+GridsAsc)

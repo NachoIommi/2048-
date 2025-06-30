@@ -289,3 +289,55 @@ body {
 .gameover-content button:hover {
   background: #c00;
 }
+
+/* Posicionamiento para el nuevo contenedor de notificaciones de bloques eliminados */
+.left-down-notifications-wrapper {
+    position: absolute;
+    bottom: 20px; /* Ajusta la distancia desde abajo */
+    left: 20px; /* Ajusta la distancia desde la izquierda */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Alinea las burbujas a la izquierda */
+    gap: 10px; /* Espacio entre las notificaciones */
+    z-index: 1000; /* Asegura que esté por encima de otros elementos */
+    pointer-events: none; /* Permite clics a través de ellas si no son interactivas */
+}
+
+/* Estilos específicos para la burbuja de notificación de tipo 'eliminated' */
+.notification-bubble.eliminated-notification-bubble {
+    background-color: #e74c3c; /* Un rojo vibrante */
+    color: white; /* Texto blanco */
+    border: 2px solid #c0392b; /* Borde un poco más oscuro */
+    padding: 10px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 1.1em;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    /* Puedes añadir animaciones aquí si lo deseas */
+    opacity: 0; /* Para animaciones de entrada */
+    transform: translateX(-20px); /* Para animaciones de entrada */
+    animation: fadeInSlideRight 0.5s forwards; /* Animación de entrada */
+}
+
+/* Opcional: Animaciones de entrada/salida para las burbujas */
+@keyframes fadeInSlideRight {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Si quieres una animación de salida, necesitarías más lógica en React para añadir una clase */
+/* Por ejemplo, en tu función pushNotification, podrías añadir un estado 'fadingOut' a la notificación */
+/* y luego en el CSS: */
+/*
+.notification-bubble.fade-out {
+    opacity: 0;
+    transform: translateX(20px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+*/

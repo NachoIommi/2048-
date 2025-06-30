@@ -31,7 +31,7 @@ interface ScoreTerm extends PrologTerm {
 interface Notification {
   id: number;
   msg: string;
-  type: 'central' | 'combo' | 'good' | 'excellent'; // Añadimos el tipo para facilitar el filtrado
+  type: 'central' | 'combo' | 'good' | 'excellent' | 'eliminated'; // Añadimos el tipo para facilitar el filtrado
 }
 
 function Game() {
@@ -48,12 +48,14 @@ function Game() {
   const [revealProgress, setRevealProgress] = useState(0);
   const [highestBlockReached, setHighestBlockReached] = useState<number>(0);
   const [maxShooteable, setMaxShooteable] = useState<number>(0);
+  const [forbiddenBlocks, setForbiddenBlocks] = useState<number[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationCounter, setNotificationCounter] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  
 
-  // Modificación en pushNotification para incluir el tipo
-  function pushNotification(msg: string) {
+  // Modificación en pushNotification para incluir el tipo 'eliminated'
+  function pushNotification(msg: string, customType?: Notification['type']) {
     setNotificationCounter(id => {
       const newId = id + 1;
       let type: Notification['type'] = 'central'; // Por defecto es central
@@ -64,6 +66,8 @@ function Game() {
         type = 'good';
       } else if (msg.includes('Excellent!')) {
         type = 'excellent';
+      } else if (msg.includes('Eliminado')) { 
+        type = 'eliminated';
       }
 
       setNotifications(prev => [...prev, { id: newId, msg, type }]);
@@ -82,7 +86,7 @@ function Game() {
   }
 
   async function initGame() {
-    const res = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid,Block2)');
+    const res = await pengine!.query('init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid,Block2), forbidden_blocks_accumulated(Forbidden)');
     setGrid(res['Grid']);
     setShootBlock(res['Block1']);
     setNextBlock(res['Block2']);
@@ -98,7 +102,7 @@ function Game() {
     if (waiting || nextBlock === null) return;
 
     const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
+    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, ForbiddenBlocksOut), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
     setWaiting(true);
 
     const response = await pengine.query(queryS);
@@ -109,6 +113,25 @@ function Game() {
       setShootBlock(nextBlock);
       setNextBlock(response['Block']);
       setAnimateNextBlock(false);
+
+      // 1. Obtener los bloques prohibidos ANTES de este turno (si tienes un estado que los guarda)
+        // Para simplificar, vamos a comparar con el estado actual `forbiddenBlocks`
+        const oldForbiddenBlocks = forbiddenBlocks;
+        const newForbiddenBlocks = response['ForbiddenBlocksOut'];
+
+        // 2. Actualizar el estado con los nuevos bloques prohibidos
+        setForbiddenBlocks(newForbiddenBlocks);
+
+        // 3. Detectar qué bloques son nuevos en la lista de prohibidos
+        const newlyForbidden = newForbiddenBlocks.filter(
+            (block: number) => !oldForbiddenBlocks.includes(block)
+        );
+
+        // 4. Disparar notificaciones por cada bloque recién prohibido
+        newlyForbidden.forEach((block: number) => {
+            pushNotification(`🚫 Bloque Eliminado: ${block}!`, 'eliminated'); // Usa tu tipo 'eliminated'
+        });
+
     } else {
       setWaiting(false);
     }
@@ -169,8 +192,6 @@ function Game() {
         // Ahora pushNotification usará el nuevo tipo
         if (cluster.length > 2) {
           pushNotification(`🔥 Combo x ${cluster.length}`);
-          // Nota: Puedes ajustar la lógica aquí para evitar que "Good!" y "Excellent!" aparezcan con el combo si solo quieres uno por fusión.
-          // O dejarlo para que aparezcan múltiples si el combo es muy grande.
           if (cluster.length === 3) pushNotification('👍 Good!');
           else if (cluster.length === 4) pushNotification('✨ Excellent!');
         }
@@ -190,10 +211,6 @@ function Game() {
         if (functor === 'score') {
           setScore(s => s + val); // Añadir al score por score (puntos ganados)
         }
-
-        if (functor === 'eliminatedBlock') {
-          pushNotification(`❌ Eliminated block: ${val}`);
-        }
       });
 
       prevGrid = effectGrid;
@@ -201,10 +218,6 @@ function Game() {
     }
 
     // Consultar nuevo maxShooteable
-    // Asegurarse de que `grid` sea la cuadrícula final después de todos los efectos
-    // ya que `setGrid` en el loop `for` es asíncrono en React, el `grid` aquí
-    // puede no ser el más actualizado si no se espera. Para ser robusto, usa `prevGrid` que
-    // es la última cuadrícula del efecto.
     const finalGridS = JSON.stringify(prevGrid).replace(/"/g, '');
     const res = await pengine.query(`max_shootable_block(${finalGridS}, Max)`);
     if (res) {
@@ -244,6 +257,7 @@ function Game() {
   // Filtrar notificaciones por tipo para el renderizado
   const centralNotifications = notifications.filter(n => n.type === 'central');
   const leftNotifications = notifications.filter(n => n.type === 'good' || n.type === 'excellent');
+  const eliminatedNotifications = notifications.filter(n => n.type === 'eliminated'); 
   const rightNotifications = notifications.filter(n => n.type === 'combo');
 
   return (
@@ -268,7 +282,7 @@ function Game() {
         </div>
       )}
 
-      {/* Contenedor para Notificaciones Izquierdas */}
+      {/* Contenedor para Notificaciones Izquierdas (Good / Excellent) */}
       {leftNotifications.length > 0 && (
         <div className="left-notifications-wrapper">
           {leftNotifications.map(({ id, msg, type }) => (
@@ -279,11 +293,26 @@ function Game() {
         </div>
       )}
 
-      {/* Contenedor para Notificaciones Derechas */}
+      {/* Contenedor para Notificaciones Derechas (Combo) */}
       {rightNotifications.length > 0 && (
         <div className="right-notifications-wrapper">
           {rightNotifications.map(({ id, msg, type }) => (
             <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
+              {msg}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Nuevo Contenedor para Notificaciones de Bloques Eliminados (Izquierda Abajo) */}
+      {eliminatedNotifications.length > 0 && (
+        <div className="left-down-notifications-wrapper"> {/* Nueva clase para el contenedor */}
+          {eliminatedNotifications.map(({ id, msg, type }) => (
+            <div 
+              key={id}
+              className="notification-bubble" // Mantén la clase base
+               style={type === 'eliminated' ? { backgroundColor: '#e74c3c', border: '2px solid #c0392b' } : {}}
+            >
               {msg}
             </div>
           ))}
