@@ -14,12 +14,13 @@ body {
   border-bottom: 1px solid lightgray;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content:flex-start;
   width: 100%;
 }
 
 .score {
   margin: 10px;
+  left: 10px;
   font-size: 25px;
   color: white;
 }
@@ -341,3 +342,46 @@ body {
     transition: opacity 0.5s ease-out, transform 0.5s ease-out;
 }
 */
+.combo-banner {
+  background: linear-gradient(135deg, #ffeb3b, #ffc107);
+  color: #000;
+  padding: 8px 16px;
+  margin-left: 50px;
+  right: 1rem;
+  border-radius: 30px;
+  font-weight: bold;
+  font-size: 1rem;
+  animation: comboPulse 0.4s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes comboPulse {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Styles for Board.tsx (if you choose to show tooltip per lane) */
+.lane.hovered {
+    background-color: rgba(255, 255, 255, 0.1); /* Resalta el carril al hacer hover */
+}
+
+.predicted-combo-tooltip {
+    position: absolute;
+    bottom: 10px; /* Ajusta la posición del tooltip */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #4CAF50; /* Un color verde para el combo */
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    white-space: nowrap;
+    z-index: 5;
+    pointer-events: none; /* Permite hacer clic a través del tooltip */
+}
