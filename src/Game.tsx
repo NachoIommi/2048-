@@ -204,7 +204,10 @@ function Game() {
           setScore(s => s + val); // Añadir al score por newBlock
           if (val > highestBlockReached) {
             setHighestBlockReached(val);
-            pushNotification(`🎉 Nuevo Bloque Maximo Alcanzado: ${val}`);
+            if(val >= 512){
+              pushNotification(`🎉 Nuevo Bloque Maximo Alcanzado: ${val}`);
+            }
+            
           }
         }
 
