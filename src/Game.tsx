@@ -31,7 +31,7 @@ interface ScoreTerm extends PrologTerm {
 interface Notification {
   id: number;
   msg: string;
-  type: 'central' | 'combo' | 'good' | 'excellent' | 'eliminated'; // Añadimos el tipo para facilitar el filtrado
+  type: 'central' | 'combo' | 'good' | 'excellent' | 'eliminated';
 }
 
 function Game() {
@@ -43,6 +43,7 @@ function Game() {
   const [nextBlock, setNextBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [fusionGroup, setFusionGroup] = useState<number[]>([]);
+  const [fusionReceptorIndex, setFusionReceptorIndex] = useState<number | null>(null);
   const [animateNextBlock, setAnimateNextBlock] = useState(false);
   const [isNextBlockRevealed, setIsNextBlockRevealed] = useState(false);
   const [revealProgress, setRevealProgress] = useState(0);
@@ -52,28 +53,20 @@ function Game() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notificationCounter, setNotificationCounter] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  
 
-  // Modificación en pushNotification para incluir el tipo 'eliminated'
   function pushNotification(msg: string, customType?: Notification['type']) {
     setNotificationCounter(id => {
       const newId = id + 1;
-      let type: Notification['type'] = 'central'; // Por defecto es central
-
-      if (msg.includes('Combo')) {
-        type = 'combo';
-      } else if (msg.includes('Good!')) {
-        type = 'good';
-      } else if (msg.includes('Excellent!')) {
-        type = 'excellent';
-      } else if (msg.includes('Eliminado')) { 
-        type = 'eliminated';
-      }
+      let type: Notification['type'] = 'central';
+      if (msg.includes('Combo')) type = 'combo';
+      else if (msg.includes('Good!')) type = 'good';
+      else if (msg.includes('Excellent!')) type = 'excellent';
+      else if (msg.includes('Eliminado')) type = 'eliminated';
 
       setNotifications(prev => [...prev, { id: newId, msg, type }]);
       setTimeout(() => {
         setNotifications(prev => prev.filter(n => n.id !== newId));
-      }, 5000); // 5 segundos para que coincida con la animación
+      }, 5000);
       return newId;
     });
   }
@@ -93,8 +86,8 @@ function Game() {
     setNumOfColumns(res['NumOfColumns']);
     setHighestBlockReached(0);
     setMaxShooteable(0);
-    setNotifications([]); // Limpiar notificaciones al iniciar
-    setNotificationCounter(0); // Reiniciar contador
+    setNotifications([]);
+    setNotificationCounter(0);
     setGameOver(false);
   }
 
@@ -114,23 +107,14 @@ function Game() {
       setNextBlock(response['Block']);
       setAnimateNextBlock(false);
 
-      // 1. Obtener los bloques prohibidos ANTES de este turno (si tienes un estado que los guarda)
-        // Para simplificar, vamos a comparar con el estado actual `forbiddenBlocks`
-        const oldForbiddenBlocks = forbiddenBlocks;
-        const newForbiddenBlocks = response['ForbiddenBlocksOut'];
+      const oldForbiddenBlocks = forbiddenBlocks;
+      const newForbiddenBlocks = response['ForbiddenBlocksOut'];
+      setForbiddenBlocks(newForbiddenBlocks);
 
-        // 2. Actualizar el estado con los nuevos bloques prohibidos
-        setForbiddenBlocks(newForbiddenBlocks);
-
-        // 3. Detectar qué bloques son nuevos en la lista de prohibidos
-        const newlyForbidden = newForbiddenBlocks.filter(
-            (block: number) => !oldForbiddenBlocks.includes(block)
-        );
-
-        // 4. Disparar notificaciones por cada bloque recién prohibido
-        newlyForbidden.forEach((block: number) => {
-            pushNotification(`🚫 Bloque Eliminado: ${block}!`, 'eliminated'); // Usa tu tipo 'eliminated'
-        });
+      const newlyForbidden = newForbiddenBlocks.filter((block: number) => !oldForbiddenBlocks.includes(block));
+      newlyForbidden.forEach((block: number) => {
+      pushNotification(`🚫 Bloque Eliminado: ${block}!`, 'eliminated');
+      });
 
     } else {
       setWaiting(false);
@@ -151,7 +135,6 @@ function Game() {
 
       setGrid(effectGrid);
 
-      // Detectar fusión
       let fusionIdx: number | null = null;
       if (prevGrid) {
         for (let j = 0; j < effectGrid.length; j++) {
@@ -186,10 +169,11 @@ function Game() {
         }
 
         setFusionGroup(cluster);
+        setFusionReceptorIndex(fusionIdx);
         await delay(500);
         setFusionGroup([]);
+        setFusionReceptorIndex(null);
 
-        // Ahora pushNotification usará el nuevo tipo
         if (cluster.length > 2) {
           pushNotification(`🔥 Combo x ${cluster.length}`);
           if (cluster.length === 3) pushNotification('👍 Good!');
@@ -199,20 +183,17 @@ function Game() {
 
       effectInfo.forEach(({ functor, args }) => {
         const val = args[0];
-
         if (functor === 'newBlock') {
-          setScore(s => s + val); // Añadir al score por newBlock
+          setScore(s => s + val);
           if (val > highestBlockReached) {
             setHighestBlockReached(val);
-            if(val >= 512){
+            if (val >= 512) {
               pushNotification(`🎉 Nuevo Bloque Maximo Alcanzado: ${val}`);
             }
-            
           }
         }
-
         if (functor === 'score') {
-          setScore(s => s + val); // Añadir al score por score (puntos ganados)
+          setScore(s => s + val);
         }
       });
 
@@ -220,14 +201,13 @@ function Game() {
       await delay(300);
     }
 
-    // Consultar nuevo maxShooteable
     const finalGridS = JSON.stringify(prevGrid).replace(/"/g, '');
     const res = await pengine.query(`max_shootable_block(${finalGridS}, Max)`);
     if (res) {
       const newMax = res['Max'];
       if (newMax > maxShooteable) {
         setMaxShooteable(newMax);
-        pushNotification(`🚀 New Block Added: ${newMax}!`); // Tipo 'central' por defecto
+        pushNotification(`🚀 New Block Added: ${newMax}!`);
       }
     }
 
@@ -257,10 +237,9 @@ function Game() {
 
   if (grid === null) return null;
 
-  // Filtrar notificaciones por tipo para el renderizado
   const centralNotifications = notifications.filter(n => n.type === 'central');
   const leftNotifications = notifications.filter(n => n.type === 'good' || n.type === 'excellent');
-  const eliminatedNotifications = notifications.filter(n => n.type === 'eliminated'); 
+  const eliminatedNotifications = notifications.filter(n => n.type === 'eliminated');
   const rightNotifications = notifications.filter(n => n.type === 'combo');
 
   return (
@@ -274,48 +253,34 @@ function Game() {
         </div>
       )}
 
-      {/* Contenedor para Notificaciones Centrales */}
       {centralNotifications.length > 0 && (
         <div className="notification-container">
           {centralNotifications.map(({ id, msg }) => (
-            <div key={id} className="notification-bubble">
-              {msg}
-            </div>
+            <div key={id} className="notification-bubble">{msg}</div>
           ))}
         </div>
       )}
 
-      {/* Contenedor para Notificaciones Izquierdas (Good / Excellent) */}
       {leftNotifications.length > 0 && (
         <div className="left-notifications-wrapper">
           {leftNotifications.map(({ id, msg, type }) => (
-            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
-              {msg}
-            </div>
+            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>{msg}</div>
           ))}
         </div>
       )}
 
-      {/* Contenedor para Notificaciones Derechas (Combo) */}
       {rightNotifications.length > 0 && (
         <div className="right-notifications-wrapper">
           {rightNotifications.map(({ id, msg, type }) => (
-            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>
-              {msg}
-            </div>
+            <div key={id} className={`notification-bubble ${type}-notification-bubble`}>{msg}</div>
           ))}
         </div>
       )}
 
-      {/* Nuevo Contenedor para Notificaciones de Bloques Eliminados (Izquierda Abajo) */}
       {eliminatedNotifications.length > 0 && (
-        <div className="left-down-notifications-wrapper"> {/* Nueva clase para el contenedor */}
+        <div className="left-down-notifications-wrapper">
           {eliminatedNotifications.map(({ id, msg, type }) => (
-            <div 
-              key={id}
-              className="notification-bubble" // Mantén la clase base
-               style={type === 'eliminated' ? { backgroundColor: '#e74c3c', border: '2px solid #c0392b' } : {}}
-            >
+            <div key={id} className="notification-bubble" style={type === 'eliminated' ? { backgroundColor: '#e74c3c', border: '2px solid #c0392b' } : {}}>
               {msg}
             </div>
           ))}
@@ -331,12 +296,13 @@ function Game() {
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
         fusionGroup={fusionGroup}
+        fusionReceptorIndex={fusionReceptorIndex ?? undefined}
       />
 
       <div className="footer">
         <div className="blockShoot">
           {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
-          {nextBlock !== null &&
+          {nextBlock !== null && (
             <div className={`next-block ${animateNextBlock && isNextBlockRevealed ? 'slide-to-left' : ''}`}>
               <div className="next-block-wrapper" onClick={revealNextBlock}>
                 {isNextBlockRevealed ? (
@@ -350,7 +316,8 @@ function Game() {
                   <div className="overlay">Bloque siguiente</div>
                 )}
               </div>
-            </div>}
+            </div>
+          )}
         </div>
       </div>
     </div>

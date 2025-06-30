@@ -7,10 +7,10 @@ interface BoardProps {
   numOfColumns: number;
   onLaneClick: (lane: number) => void;
   fusionGroup: number[];
-  
+  fusionReceptorIndex?: number; // NUEVO: se pasa desde Game para evitar animación de disparo
 }
 
-function Board({ grid, numOfColumns, onLaneClick, fusionGroup }: BoardProps) {
+function Board({ grid, numOfColumns, onLaneClick, fusionGroup, fusionReceptorIndex }: BoardProps) {
   const numOfRows = grid.length / numOfColumns;
 
   let receptorOffset = { x: 0, y: 0 };
@@ -46,8 +46,8 @@ function Board({ grid, numOfColumns, onLaneClick, fusionGroup }: BoardProps) {
           <div
             key={`lane-${i}`}
             className="lane"
-            style={{ gridColumn: i+1, gridRow: `1 / span ${numOfRows}` }}
-            onClick={() => onLaneClick(i+1)}
+            style={{ gridColumn: i + 1, gridRow: `1 / span ${numOfRows}` }}
+            onClick={() => onLaneClick(i + 1)}
           />
         ))}
 
@@ -56,39 +56,45 @@ function Board({ grid, numOfColumns, onLaneClick, fusionGroup }: BoardProps) {
           const row = Math.floor(i / numOfColumns), col = i % numOfColumns;
           const pos: Position = [row, col];
 
-          if (fusionGroup.includes(i)) {
-            const isReceptor = (i === fusionGroup[0]);
-            return (
-              <motion.div
-                key={i}
-                initial={{ scale: isReceptor ? 1.1 : 1 }}
-                animate={
-                  isReceptor
-                    ? { scale: 1, x: receptorOffset.x, y: receptorOffset.y }
-                    : {
-                        x: (fusionGroup[0]%numOfColumns - col)*20,
-                        y: (Math.floor(fusionGroup[0]/numOfColumns) - row)*20,
-                        scale: 0,
-                        opacity: 0
-                      }
-                }
-                transition={{ duration: 0.4, ease: "easeOut" }}
-                style={{
-                  gridRow: row+1,
-                  gridColumn: col+1,
-                  zIndex: isReceptor ? 2 : 1,
-                  boxShadow: isReceptor ? '0 0 10px gold' : undefined,
-                  border: isReceptor ? '2px solid gold' : undefined,
-                  borderRadius: '8px'
-                }}
-              >
-                <Block value={num} position={pos} skipLaunch />
-              </motion.div>
-            );
-          }
+          const isInFusion = fusionGroup.includes(i);
+          const isReceptor = i === fusionReceptorIndex;
 
-          // Bloques que NO participan en la fusión
-          return <Block key={i} value={num} position={pos} skipLaunch={false} />;
+          return (
+            <motion.div
+              key={`${row}-${col}`}
+              initial={false}
+              animate={
+                isInFusion
+                  ? (
+                      isReceptor
+                        ? { scale: 1.1 }
+                        : {
+                            x: (fusionGroup[0] % numOfColumns - col) * 20,
+                            y: (Math.floor(fusionGroup[0] / numOfColumns) - row) * 20,
+                            scale: 0,
+                            opacity: 0
+                          }
+                    )
+                  : { scale: 1, x: 0, y: 0, opacity: 1 }
+              }
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              style={{
+                gridRow: row + 1,
+                gridColumn: col + 1,
+                zIndex: isReceptor ? 2 : 1,
+                boxShadow: isReceptor ? '0 0 10px gold' : undefined,
+                border: isReceptor ? '2px solid gold' : undefined,
+                borderRadius: '8px',
+                position: 'relative'
+              }}
+            >
+              <Block
+                value={Number(num)}
+                position={pos}
+                skipLaunch={isReceptor} // solo el receptor se salta la animación
+              />
+            </motion.div>
+          );
         })}
       </div>
     </div>

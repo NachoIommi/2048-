@@ -30,7 +30,7 @@ function Block({ value, position, skipLaunch = false }: BlockProps) {
       animate={{ y: 0, scale: 1, opacity: 1 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
     >
-      {value !== 0 ? value : ''}
+      {value}
     </motion.div>
   );
 }
