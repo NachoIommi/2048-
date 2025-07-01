@@ -8,7 +8,7 @@
 ---
 
 
-------Introducción ------
+------ Introducción ------
 Este informe detalla la implementación del proyecto desarrollado en Prolog y React, basado en un juego tipo M2 Blocks. Se explican las decisiones estratégicas tomadas para cumplir con los requerimientos funcionales, los desafíos encontrados, funcionalidades extra incorporadas y los tests realizados, incluyendo capturas de pantalla
 
 Implementación en Prolog
