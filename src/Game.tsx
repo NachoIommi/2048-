@@ -58,6 +58,8 @@ function Game() {
   const [hoveredLane, setHoveredLane] = useState<number | null>(null);
   const [predictedCombo, setPredictedCombo] = useState<number | null>(null);
 
+  const [showComboBanner, setShowComboBanner] = useState(true);
+
   function pushNotification(msg: string, customType?: Notification['type']) {
     setNotificationCounter(id => {
       const newId = id + 1;
@@ -336,9 +338,10 @@ function Game() {
       )}
 
       <div className="header">
+        
         <div className="score">Puntaje: {score}</div>
 
-        {hoveredLane !== null && (
+        {showComboBanner && hoveredLane !== null && (
           <div className="combo-banner">
             🎯 Columna {hoveredLane} {predictedCombo !== null ? `(Combo x${predictedCombo})` : '(sin combo)'}
           </div>
@@ -356,8 +359,46 @@ function Game() {
       />
 
       <div className="footer">
-        <div className="blockShoot">
+        <div
+        className="blockShoot"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          marginTop: '1rem',
+          columnGap: '1rem',
+          width: '100%',
+          maxWidth: '500px',
+          marginLeft: 'auto',
+          marginRight: 'auto'
+        }}
+      >
+        {/* Botón a la izquierda */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => setShowComboBanner(prev => !prev)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '8px',
+              backgroundColor: '#555',
+              color: 'white',
+              fontWeight: 'bold',
+              border: 'none',
+              cursor: 'pointer',
+              height: 'fit-content'
+            }}
+          >
+            {showComboBanner ? 'Ocultar Hint' : 'Mostrar Hint'}
+          </button>
+        </div>
+
+        {/* ShootBlock centrado */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
           {shootBlock !== null && <Block value={shootBlock} position={[0, 0]} />}
+        </div>
+
+        {/* NextBlock a la derecha */}
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
           {nextBlock !== null && (
             <div className={`next-block ${animateNextBlock && isNextBlockRevealed ? 'slide-to-left' : ''}`}>
               <div className="next-block-wrapper" onClick={revealNextBlock}>
@@ -365,18 +406,24 @@ function Game() {
                   <>
                     <Block value={nextBlock} position={[0, 1]} skipLaunch />
                     <div className="progress-bar">
-                      <div className="progress-bar-fill" style={{ width: `${revealProgress * 100}%` }} />
+                      <div
+                        className="progress-bar-fill"
+                        style={{ width: `${revealProgress * 100}%` }}
+                      />
                     </div>
                   </>
                 ) : (
                   <div className="overlay">Bloque siguiente</div>
                 )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      </div>
+    
   );
 }
 
