@@ -7,7 +7,7 @@
 **M2 Blocks** (o *Merge 2 Blocks*) es un puzzle de estrategia en el que lanzas bloques numerados a una parrilla de 5×7, combinándolos para formar potencias de dos y sumar puntos.  
 
 <p align="center">
-  <img src="C:\Users\nacho\Desktop\2048-\proyecto-m2blocks-comision-2\docs\images\m2blocks-game-screenshot.png" alt="Screenshot M2 Blocks" width="300"/>
+  <img src="C:/Users/nacho/Desktop/2048-/proyecto-m2blocks-comision-2/docs/images/m2blocks-game-screenshot.png" alt="Screenshot M2 Blocks" width="300"/>
 </p>
 
 ---
